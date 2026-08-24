@@ -126,20 +126,28 @@ public class PaperlessDocumentClient(HttpClient httpClient) : IPaperlessDocument
         var status = task.TryGetProperty("status", out var statusElement)
             ? statusElement.GetString()
             : null;
-        if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase)
-            && task.TryGetProperty("result_data", out var resultData)
-            && resultData.ValueKind == JsonValueKind.Object)
+        if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
         {
-            if (resultData.TryGetProperty("document_id", out var documentId)
-                && documentId.TryGetInt32(out var parsedDocumentId))
+            if (task.TryGetProperty("result_data", out var resultData)
+                && resultData.ValueKind == JsonValueKind.Object)
             {
-                return new PaperlessTaskResult(parsedDocumentId, false);
+                if (resultData.TryGetProperty("document_id", out var documentId)
+                    && documentId.TryGetInt32(out var parsedDocumentId))
+                {
+                    return new PaperlessTaskResult(parsedDocumentId, false);
+                }
+
+                if (resultData.TryGetProperty("duplicate_of", out var duplicateId)
+                    && duplicateId.TryGetInt32(out var parsedDuplicateId))
+                {
+                    return new PaperlessTaskResult(parsedDuplicateId, false);
+                }
             }
 
-            if (resultData.TryGetProperty("duplicate_of", out var duplicateId)
-                && duplicateId.TryGetInt32(out var parsedDuplicateId))
+            if (task.TryGetProperty("related_document", out var relatedDocument)
+                && relatedDocument.TryGetInt32(out var parsedRelatedDocument))
             {
-                return new PaperlessTaskResult(parsedDuplicateId, false);
+                return new PaperlessTaskResult(parsedRelatedDocument, false);
             }
         }
 
@@ -156,7 +164,6 @@ public class PaperlessDocumentClient(HttpClient httpClient) : IPaperlessDocument
     {
         var request = new HttpRequestMessage(method, new Uri(connection.BaseUrl, relativeUrl));
         request.Headers.Authorization = new AuthenticationHeaderValue("Token", connection.ApiToken);
-        request.Headers.Accept.ParseAdd("application/json; version=10");
         return request;
     }
 

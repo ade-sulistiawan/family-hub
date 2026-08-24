@@ -52,9 +52,9 @@ public class PaperlessIntegrationTests : IClassFixture<FamilyHubApiFactory>
             { new StringContent("Washing machine"), "name" },
             { new StringContent("2026-08-01"), "purchasedOn" },
             { new StringContent("2028-08-01"), "warrantyExpiresOn" },
-            { new ByteArrayContent(Encoding.UTF8.GetBytes("receipt-image")), "document", "receipt.jpg" },
+            { new ByteArrayContent(Encoding.UTF8.GetBytes("receipt-image")), "document", "receipt.png" },
         };
-        form.Last().Headers.ContentType = new("image/jpeg");
+        form.Last().Headers.ContentType = new("image/png");
 
         var createResponse = await client.PostAsync("/api/warranty-items/with-document", form);
 

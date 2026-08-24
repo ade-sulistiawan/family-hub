@@ -16,9 +16,8 @@ public class PaperlessDocumentClientTests
             Assert.Equal(HttpMethod.Post, request.Method);
             Assert.Equal("https://paperless.example.test/api/documents/post_document/", request.RequestUri?.AbsoluteUri);
             Assert.Equal(new AuthenticationHeaderValue("Token", "secret-token"), request.Headers.Authorization);
-            Assert.Contains(request.Headers.Accept, value =>
-                value.MediaType == "application/json"
-                && value.Parameters.Any(parameter => parameter.Name == "version" && parameter.Value == "10"));
+            Assert.DoesNotContain(request.Headers.Accept, value =>
+                value.Parameters.Any(parameter => parameter.Name == "version"));
 
             var form = Assert.IsType<MultipartFormDataContent>(request.Content);
             var title = Assert.Single(form, part => part.Headers.ContentDisposition?.Name == "title");
@@ -71,6 +70,39 @@ public class PaperlessDocumentClientTests
 
         Assert.Equal("Paperless-ngx could not be reached.", exception.Message);
         Assert.IsType<HttpRequestException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task Upload_supports_png_with_legacy_paperless_task_responses()
+    {
+        var requests = new Queue<Func<HttpRequestMessage, HttpResponseMessage>>();
+        requests.Enqueue(request =>
+        {
+            Assert.DoesNotContain(request.Headers.Accept, value =>
+                value.Parameters.Any(parameter => parameter.Name == "version"));
+            var form = Assert.IsType<MultipartFormDataContent>(request.Content);
+            var document = Assert.Single(form, part => part.Headers.ContentDisposition?.Name == "document");
+            Assert.Equal("receipt.png", document.Headers.ContentDisposition?.FileName);
+            Assert.Equal("image/png", document.Headers.ContentType?.MediaType);
+            return JsonResponse("\"task-png\"");
+        });
+        requests.Enqueue(_ => JsonResponse("""
+            [{"status":"SUCCESS","related_document":4821}]
+            """));
+        using var httpClient = new HttpClient(new QueueMessageHandler(requests));
+        var client = new PaperlessDocumentClient(httpClient);
+        await using var content = new MemoryStream([137, 80, 78, 71]);
+
+        var documentId = await client.UploadAsync(
+            new PaperlessConnection(new Uri("https://paperless.example.test/"), "secret-token"),
+            content,
+            "receipt.png",
+            "image/png",
+            "Washing machine",
+            CancellationToken.None);
+
+        Assert.Equal("4821", documentId);
+        Assert.Empty(requests);
     }
 
     private static HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK)

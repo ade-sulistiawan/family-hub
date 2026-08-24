@@ -16,8 +16,8 @@ public class FakePaperlessDocumentClient : IPaperlessDocumentClient
         var body = await reader.ReadToEndAsync(cancellationToken);
         if (connection.BaseUrl != new Uri("https://paperless.example.test/")
             || connection.ApiToken != "secret-paperless-token"
-            || fileName != "receipt.jpg"
-            || contentType != "image/jpeg"
+            || fileName != "receipt.png"
+            || contentType != "image/png"
             || title != "Washing machine"
             || body != "receipt-image")
         {
