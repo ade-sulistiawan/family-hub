@@ -2,6 +2,7 @@
 @using FamilyHub.Services
 @inject MedicationClient MedicationClient
 @inject HouseholdClient HouseholdClient
+@inject PushNotificationClient PushNotificationClient
 @inject NavigationManager Navigation
 
 <PageTitle>Medications | Family Hub</PageTitle>
@@ -22,6 +23,28 @@
     }
     else if (_household is not null)
     {
+        <section class="tracker-notification" aria-labelledby="notification-heading">
+            <div>
+                <h2 id="notification-heading">Medication notifications</h2>
+                <span>@GetNotificationDescription()</span>
+            </div>
+            <div class="tracker-notification-actions">
+                <button type="button" class="tracker-secondary" disabled="@_isEnablingNotifications" @onclick="EnableNotificationsAsync">
+                    @(_isEnablingNotifications ? "Enabling..." : _notificationPermission == "granted" ? "Refresh setup" : "Enable notifications")
+                </button>
+                @if (_pushSubscriptionId is not null)
+                {
+                    <button type="button" class="tracker-secondary" disabled="@_isSendingTest" @onclick="SendTestNotificationAsync">
+                        @(_isSendingTest ? "Sending..." : "Send test")
+                    </button>
+                }
+            </div>
+        </section>
+        @if (_notificationError is not null)
+        {
+            <p class="tracker-form-error" role="alert">@_notificationError</p>
+        }
+
         <section class="tracker-editor" aria-labelledby="add-medication-heading">
             <div class="tracker-section-heading"><h2 id="add-medication-heading">Add medication</h2><span>Assigned to @_household.DisplayName</span></div>
             <form class="tracker-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
@@ -100,6 +123,11 @@
     private bool _isLoading = true;
     private bool _isSaving;
     private Guid? _loggingMedicationId;
+    private Guid? _pushSubscriptionId;
+    private string _notificationPermission = "default";
+    private string? _notificationError;
+    private bool _isEnablingNotifications;
+    private bool _isSendingTest;
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -117,6 +145,7 @@
             }
             _medications = await MedicationClient.GetAllAsync();
             _doseLogs = await MedicationClient.GetDoseLogsAsync();
+            await LoadNotificationStateAsync();
         }
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
@@ -127,6 +156,28 @@
             _loadError = "Medications could not be loaded.";
         }
         finally { _isLoading = false; }
+    }
+
+    private async Task LoadNotificationStateAsync()
+    {
+        try
+        {
+            _notificationPermission = await PushNotificationClient.GetPermissionStatusAsync();
+            if (_notificationPermission == "granted")
+            {
+                var registration = await PushNotificationClient.RegisterAsync(requestPermission: false);
+                _pushSubscriptionId = registration?.PushSubscriptionId;
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _notificationError = "Notifications are not configured on this server.";
+        }
+        catch (JSException)
+        {
+            _notificationPermission = "unsupported";
+            _notificationError = "This browser could not initialize Push notifications.";
+        }
     }
 
     private async Task CreateAsync()
@@ -177,6 +228,59 @@
         }
         finally { _loggingMedicationId = null; }
     }
+
+    private async Task EnableNotificationsAsync()
+    {
+        _isEnablingNotifications = true;
+        _notificationError = null;
+        try
+        {
+            var registration = await PushNotificationClient.RegisterAsync(requestPermission: true);
+            _notificationPermission = registration?.Status ?? "unsupported";
+            _pushSubscriptionId = registration?.PushSubscriptionId;
+            if (_notificationPermission == "denied")
+            {
+                _notificationError = "Notifications are blocked in this browser's site settings.";
+            }
+            else if (_notificationPermission == "unsupported")
+            {
+                _notificationError = "Push notifications are not supported by this browser.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _notificationError = "Notifications could not be enabled. Check the server Push configuration.";
+        }
+        catch (JSException)
+        {
+            _notificationError = "The browser could not create a Push subscription.";
+        }
+        finally { _isEnablingNotifications = false; }
+    }
+
+    private async Task SendTestNotificationAsync()
+    {
+        if (_pushSubscriptionId is null) return;
+        _isSendingTest = true;
+        _notificationError = null;
+        try
+        {
+            await PushNotificationClient.SendTestAsync(_pushSubscriptionId.Value);
+        }
+        catch (HttpRequestException)
+        {
+            _notificationError = "The test notification could not be sent.";
+        }
+        finally { _isSendingTest = false; }
+    }
+
+    private string GetNotificationDescription() => _notificationPermission switch
+    {
+        "granted" => "This device receives reminders even when Family Hub is closed.",
+        "denied" => "Blocked by this browser. Allow notifications in site settings to continue.",
+        "unsupported" => "This browser does not support Web Push.",
+        _ => "Enable this device to receive reminders at each scheduled dose time.",
+    };
 
     private static string GetScheduleText(MedicationItem medication) => medication.Kind == "Scheduled"
         ? $"Daily at {medication.ScheduledTime:h\\:mm}"

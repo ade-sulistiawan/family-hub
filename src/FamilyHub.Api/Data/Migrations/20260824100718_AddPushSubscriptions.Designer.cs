@@ -3,6 +3,7 @@ using System;
 using FamilyHub.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FamilyHub.Api.Data.Migrations
 {
     [DbContext(typeof(FamilyHubDbContext))]
-    partial class FamilyHubDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260824100718_AddPushSubscriptions")]
+    partial class AddPushSubscriptions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -294,34 +297,6 @@ namespace FamilyHub.Api.Data.Migrations
                     b.ToTable("BrowserPushSubscriptions");
                 });
 
-            modelBuilder.Entity("FamilyHub.Api.Notifications.MedicationReminderDelivery", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BrowserPushSubscriptionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("MedicationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateOnly>("ScheduledOn")
-                        .HasColumnType("date");
-
-                    b.Property<DateTimeOffset>("SentAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BrowserPushSubscriptionId");
-
-                    b.HasIndex("MedicationId", "BrowserPushSubscriptionId", "ScheduledOn")
-                        .IsUnique();
-
-                    b.ToTable("MedicationReminderDeliveries");
-                });
-
             modelBuilder.Entity("FamilyHub.Api.Warranties.WarrantyFacet", b =>
                 {
                     b.Property<Guid>("ItemId")
@@ -436,21 +411,6 @@ namespace FamilyHub.Api.Data.Migrations
                     b.HasOne("FamilyHub.Api.Households.FamilyMember", null)
                         .WithMany()
                         .HasForeignKey("FamilyMemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("FamilyHub.Api.Notifications.MedicationReminderDelivery", b =>
-                {
-                    b.HasOne("FamilyHub.Api.Notifications.BrowserPushSubscription", null)
-                        .WithMany()
-                        .HasForeignKey("BrowserPushSubscriptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("FamilyHub.Api.Medications.Medication", null)
-                        .WithMany()
-                        .HasForeignKey("MedicationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

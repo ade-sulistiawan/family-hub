@@ -1,8 +1,10 @@
 using FamilyHub.Api.Data;
+using FamilyHub.Api.Notifications;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Testcontainers.PostgreSql;
@@ -20,10 +22,20 @@ public class FamilyHubApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.ConfigureAppConfiguration((_, configuration) =>
+            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Notifications:PollingEnabled"] = "false",
+            }));
+
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<FamilyHubDbContext>>();
             services.AddDbContext<FamilyHubDbContext>(options => options.UseNpgsql(_postgres.GetConnectionString()));
+            services.RemoveAll<IPushNotificationSender>();
+            services.AddSingleton<FakePushNotificationSender>();
+            services.AddSingleton<IPushNotificationSender>(provider =>
+                provider.GetRequiredService<FakePushNotificationSender>());
 
             services.AddAuthentication(TestAuthHandler.SchemeName)
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });

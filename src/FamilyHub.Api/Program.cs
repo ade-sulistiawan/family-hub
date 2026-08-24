@@ -4,6 +4,7 @@ using FamilyHub.Api.Expiry;
 using FamilyHub.Api.FirstAid;
 using FamilyHub.Api.Households;
 using FamilyHub.Api.Medications;
+using FamilyHub.Api.Notifications;
 using FamilyHub.Api.Warranties;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -18,6 +19,10 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<FamilyHubDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("FamilyHub")));
+builder.Services.AddScoped<MedicationReminderDispatcher>();
+builder.Services.AddSingleton<IPushNotificationSender, WebPushNotificationSender>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddHostedService<MedicationReminderWorker>();
 
 var authenticationBuilder = builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -85,6 +90,7 @@ app.MapExpiryEndpoints();
 app.MapWarrantyEndpoints();
 app.MapFirstAidEndpoints();
 app.MapMedicationEndpoints();
+app.MapPushSubscriptionEndpoints();
 
 app.MapFallbackToFile("index.html");
 

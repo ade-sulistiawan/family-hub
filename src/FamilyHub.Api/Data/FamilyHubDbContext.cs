@@ -4,6 +4,7 @@ using FamilyHub.Api.FirstAid;
 using FamilyHub.Api.Households;
 using FamilyHub.Api.Items;
 using FamilyHub.Api.Medications;
+using FamilyHub.Api.Notifications;
 using FamilyHub.Api.Warranties;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,6 +22,8 @@ public class FamilyHubDbContext(DbContextOptions<FamilyHubDbContext> options) : 
     public DbSet<StockFacet> StockFacets => Set<StockFacet>();
     public DbSet<Medication> Medications => Set<Medication>();
     public DbSet<DoseLog> DoseLogs => Set<DoseLog>();
+    public DbSet<BrowserPushSubscription> BrowserPushSubscriptions => Set<BrowserPushSubscription>();
+    public DbSet<MedicationReminderDelivery> MedicationReminderDeliveries => Set<MedicationReminderDelivery>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -82,6 +85,25 @@ public class FamilyHubDbContext(DbContextOptions<FamilyHubDbContext> options) : 
             entity.Property(log => log.Status).HasConversion<string>();
             entity.HasOne<Medication>().WithMany().HasForeignKey(log => log.MedicationId);
             entity.HasOne<FamilyMember>().WithMany().HasForeignKey(log => log.FamilyMemberId);
+        });
+
+        modelBuilder.Entity<BrowserPushSubscription>(entity =>
+        {
+            entity.HasIndex(subscription => subscription.Endpoint).IsUnique();
+            entity.HasOne<FamilyMember>().WithMany().HasForeignKey(subscription => subscription.FamilyMemberId);
+        });
+
+        modelBuilder.Entity<MedicationReminderDelivery>(entity =>
+        {
+            entity.HasIndex(delivery => new
+            {
+                delivery.MedicationId,
+                delivery.BrowserPushSubscriptionId,
+                delivery.ScheduledOn,
+            }).IsUnique();
+            entity.HasOne<Medication>().WithMany().HasForeignKey(delivery => delivery.MedicationId);
+            entity.HasOne<BrowserPushSubscription>().WithMany()
+                .HasForeignKey(delivery => delivery.BrowserPushSubscriptionId);
         });
     }
 }

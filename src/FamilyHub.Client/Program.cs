@@ -14,5 +14,6 @@ builder.Services.AddScoped<ExpiryClient>();
 builder.Services.AddScoped<WarrantyClient>();
 builder.Services.AddScoped<FirstAidClient>();
 builder.Services.AddScoped<MedicationClient>();
+builder.Services.AddScoped<PushNotificationClient>();
 
 await builder.Build().RunAsync();
