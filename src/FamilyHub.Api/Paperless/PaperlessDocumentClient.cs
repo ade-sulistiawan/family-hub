@@ -131,23 +131,20 @@ public class PaperlessDocumentClient(HttpClient httpClient) : IPaperlessDocument
             if (task.TryGetProperty("result_data", out var resultData)
                 && resultData.ValueKind == JsonValueKind.Object)
             {
-                if (resultData.TryGetProperty("document_id", out var documentId)
-                    && documentId.TryGetInt32(out var parsedDocumentId))
+                if (TryGetDocumentId(resultData, "document_id", out var documentId))
                 {
-                    return new PaperlessTaskResult(parsedDocumentId, false);
+                    return new PaperlessTaskResult(documentId, false);
                 }
 
-                if (resultData.TryGetProperty("duplicate_of", out var duplicateId)
-                    && duplicateId.TryGetInt32(out var parsedDuplicateId))
+                if (TryGetDocumentId(resultData, "duplicate_of", out var duplicateId))
                 {
-                    return new PaperlessTaskResult(parsedDuplicateId, false);
+                    return new PaperlessTaskResult(duplicateId, false);
                 }
             }
 
-            if (task.TryGetProperty("related_document", out var relatedDocument)
-                && relatedDocument.TryGetInt32(out var parsedRelatedDocument))
+            if (TryGetDocumentId(task, "related_document", out var relatedDocumentId))
             {
-                return new PaperlessTaskResult(parsedRelatedDocument, false);
+                return new PaperlessTaskResult(relatedDocumentId, false);
             }
         }
 
@@ -155,6 +152,26 @@ public class PaperlessDocumentClient(HttpClient httpClient) : IPaperlessDocument
             && (status.Equals("failure", StringComparison.OrdinalIgnoreCase)
                 || status.Equals("revoked", StringComparison.OrdinalIgnoreCase));
         return new PaperlessTaskResult(null, isFailed);
+    }
+
+    private static bool TryGetDocumentId(JsonElement container, string propertyName, out int documentId)
+    {
+        documentId = default;
+        if (!container.TryGetProperty(propertyName, out var value))
+        {
+            return false;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.Number => value.TryGetInt32(out documentId),
+            JsonValueKind.String => int.TryParse(
+                value.GetString(),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out documentId),
+            _ => false,
+        };
     }
 
     private static HttpRequestMessage CreateRequest(

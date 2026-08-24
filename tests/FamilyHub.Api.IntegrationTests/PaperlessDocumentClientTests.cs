@@ -87,7 +87,7 @@ public class PaperlessDocumentClientTests
             return JsonResponse("\"task-png\"");
         });
         requests.Enqueue(_ => JsonResponse("""
-            [{"status":"SUCCESS","related_document":4821}]
+            [{"status":"SUCCESS","related_document":"4821"}]
             """));
         using var httpClient = new HttpClient(new QueueMessageHandler(requests));
         var client = new PaperlessDocumentClient(httpClient);
