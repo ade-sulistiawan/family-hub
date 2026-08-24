@@ -1,0 +1,187 @@
+@page "/medications"
+@using FamilyHub.Services
+@inject MedicationClient MedicationClient
+@inject HouseholdClient HouseholdClient
+@inject NavigationManager Navigation
+
+<PageTitle>Medications | Family Hub</PageTitle>
+
+<div class="tracker-page">
+    <header class="tracker-header">
+        <div><p class="tracker-eyebrow">Medication &amp; Dosage Reminders</p><h1>Medications</h1></div>
+        <span>Schedules and Dose Logs for the Household</span>
+    </header>
+
+    @if (_isLoading)
+    {
+        <div class="tracker-state" role="status">Loading medications...</div>
+    }
+    else if (_loadError is not null)
+    {
+        <div class="tracker-notice tracker-error" role="alert"><span>@_loadError</span><button type="button" class="tracker-text-action" @onclick="LoadAsync">Try again</button></div>
+    }
+    else if (_household is not null)
+    {
+        <section class="tracker-editor" aria-labelledby="add-medication-heading">
+            <div class="tracker-section-heading"><h2 id="add-medication-heading">Add medication</h2><span>Assigned to @_household.DisplayName</span></div>
+            <form class="tracker-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+                <label class="tracker-field-wide"><span>Medication</span><input required maxlength="120" placeholder="e.g. Vitamin D" @bind="_name" /></label>
+                <label><span>Dosage</span><input required maxlength="120" placeholder="e.g. 1 tablet" @bind="_dosage" /></label>
+                <label><span>Type</span><select @bind="_kind"><option value="Scheduled">Scheduled</option><option value="Prn">PRN Medication</option></select></label>
+                @if (_kind == "Scheduled")
+                {
+                    <label><span>Daily time</span><input type="time" required @bind="_scheduledTime" /></label>
+                }
+                else
+                {
+                    <label><span>Minimum hours between doses</span><input type="number" min="1" required @bind="_minimumHoursBetweenDoses" /></label>
+                }
+                <button type="submit" class="tracker-primary" disabled="@_isSaving">@(_isSaving ? "Adding..." : "Add medication")</button>
+            </form>
+            @if (_saveError is not null) { <p class="tracker-form-error" role="alert">@_saveError</p> }
+        </section>
+
+        <section class="tracker-list" aria-labelledby="medication-list-heading">
+            <div class="tracker-section-heading"><h2 id="medication-list-heading">Medication plan</h2><span>@_medications.Count @(_medications.Count == 1 ? "medication" : "medications")</span></div>
+            @if (_actionError is not null) { <div class="tracker-notice tracker-error tracker-inline-error" role="alert">@_actionError</div> }
+            @if (_medications.Count == 0)
+            {
+                <div class="tracker-empty"><strong>No medications</strong><span>Add Scheduled or PRN Medication above.</span></div>
+            }
+            else
+            {
+                <div class="tracker-rows">
+                    @foreach (var medication in _medications)
+                    {
+                        <article class="tracker-row tracker-row-without-date">
+                            <div class="tracker-row-main">
+                                <h3>@medication.Name</h3>
+                                <span>@medication.Dosage · @medication.AssignedDisplayName · @GetScheduleText(medication)</span>
+                            </div>
+                            <div class="tracker-row-actions">
+                                <span class="tracker-badge">@(medication.Kind == "Prn" ? "PRN" : "Scheduled")</span>
+                                <button type="button" class="tracker-secondary" disabled="@(_loggingMedicationId == medication.MedicationId)" @onclick="() => LogTakenAsync(medication)">
+                                    @(_loggingMedicationId == medication.MedicationId ? "Logging..." : "Log taken")
+                                </button>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        @if (_doseLogs.Count > 0)
+        {
+            <section class="tracker-list" aria-labelledby="dose-log-heading">
+                <div class="tracker-section-heading"><h2 id="dose-log-heading">Recent Dose Logs</h2><span>Latest first</span></div>
+                <div class="tracker-history">
+                    @foreach (var log in _doseLogs.Take(8))
+                    {
+                        <div><strong>@GetMedicationName(log.MedicationId)</strong><span>@log.Status · @log.LoggedAt.LocalDateTime.ToString("MMM d, h:mm tt")</span></div>
+                    }
+                </div>
+            </section>
+        }
+    }
+</div>
+
+@code {
+    private HouseholdInfo? _household;
+    private IReadOnlyList<MedicationItem> _medications = [];
+    private IReadOnlyList<DoseLogItem> _doseLogs = [];
+    private string _name = string.Empty;
+    private string _dosage = string.Empty;
+    private string _kind = "Scheduled";
+    private TimeOnly _scheduledTime = new(8, 0);
+    private int _minimumHoursBetweenDoses = 6;
+    private string? _loadError;
+    private string? _saveError;
+    private string? _actionError;
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private Guid? _loggingMedicationId;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+        try
+        {
+            _household = await HouseholdClient.GetMineAsync();
+            if (_household is null)
+            {
+                _loadError = "Complete Household setup before tracking medications.";
+                return;
+            }
+            _medications = await MedicationClient.GetAllAsync();
+            _doseLogs = await MedicationClient.GetDoseLogsAsync();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/medications", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Medications could not be loaded.";
+        }
+        finally { _isLoading = false; }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_household is null || string.IsNullOrWhiteSpace(_name) || string.IsNullOrWhiteSpace(_dosage)) return;
+        _isSaving = true;
+        _saveError = null;
+        try
+        {
+            await MedicationClient.CreateAsync(
+                _name.Trim(),
+                _dosage.Trim(),
+                _household.FamilyMemberId,
+                _kind,
+                _kind == "Scheduled" ? _scheduledTime : null,
+                _kind == "Prn" ? _minimumHoursBetweenDoses : null);
+            _name = string.Empty;
+            _dosage = string.Empty;
+            _medications = await MedicationClient.GetAllAsync();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/medications", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _saveError = "The medication could not be added.";
+        }
+        finally { _isSaving = false; }
+    }
+
+    private async Task LogTakenAsync(MedicationItem medication)
+    {
+        _loggingMedicationId = medication.MedicationId;
+        _actionError = null;
+        try
+        {
+            await MedicationClient.LogDoseAsync(medication.MedicationId, "Taken");
+            _doseLogs = await MedicationClient.GetDoseLogsAsync();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/medications", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _actionError = $"A Dose Log could not be added for {medication.Name}.";
+        }
+        finally { _loggingMedicationId = null; }
+    }
+
+    private static string GetScheduleText(MedicationItem medication) => medication.Kind == "Scheduled"
+        ? $"Daily at {medication.ScheduledTime:h\\:mm}"
+        : $"At least {medication.MinimumHoursBetweenDoses} hours apart";
+
+    private string GetMedicationName(Guid medicationId) =>
+        _medications.FirstOrDefault(medication => medication.MedicationId == medicationId)?.Name ?? "Medication";
+}

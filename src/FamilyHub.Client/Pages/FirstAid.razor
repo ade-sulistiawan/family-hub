@@ -1,0 +1,126 @@
+@page "/first-aid"
+@using FamilyHub.Services
+@inject FirstAidClient FirstAidClient
+@inject HouseholdClient HouseholdClient
+@inject NavigationManager Navigation
+
+<PageTitle>First-Aid Kit | Family Hub</PageTitle>
+
+<div class="tracker-page">
+    <header class="tracker-header">
+        <div><p class="tracker-eyebrow">First-Aid Kit Inventory</p><h1>First-aid stock</h1></div>
+        <span>Low stock and expiry in one place</span>
+    </header>
+
+    @if (_isLoading)
+    {
+        <div class="tracker-state" role="status">Loading first-aid stock...</div>
+    }
+    else if (_loadError is not null)
+    {
+        <div class="tracker-notice tracker-error" role="alert"><span>@_loadError</span><button type="button" class="tracker-text-action" @onclick="LoadAsync">Try again</button></div>
+    }
+    else
+    {
+        <section class="tracker-editor" aria-labelledby="add-stock-heading">
+            <div class="tracker-section-heading"><h2 id="add-stock-heading">Add first-aid stock</h2><span>Also appears in Expiry Tracker</span></div>
+            <form class="tracker-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+                <label class="tracker-field-wide"><span>Item name</span><input required maxlength="120" placeholder="e.g. Adhesive bandages" @bind="_name" /></label>
+                <label><span>Quantity</span><input type="number" min="0" required @bind="_quantity" /></label>
+                <label><span>Low-stock threshold</span><input type="number" min="0" required @bind="_lowStockThreshold" /></label>
+                <label><span>Expiry date</span><input type="date" required @bind="_expiresOn" /></label>
+                <label><span>Lead Time (days)</span><input type="number" min="0" max="3650" required @bind="_leadTimeDays" /></label>
+                <button type="submit" class="tracker-primary" disabled="@_isSaving">@(_isSaving ? "Adding..." : "Add stock")</button>
+            </form>
+            @if (_saveError is not null) { <p class="tracker-form-error" role="alert">@_saveError</p> }
+        </section>
+
+        <section class="tracker-list" aria-labelledby="stock-list-heading">
+            <div class="tracker-section-heading"><h2 id="stock-list-heading">Kit inventory</h2><span>@_items.Count @(_items.Count == 1 ? "item" : "items")</span></div>
+            @if (_items.Count == 0)
+            {
+                <div class="tracker-empty"><strong>No first-aid stock</strong><span>Add the first Item above.</span></div>
+            }
+            else
+            {
+                <div class="tracker-rows">
+                    @foreach (var item in _items)
+                    {
+                        var isLow = item.Quantity <= item.LowStockThreshold;
+                        <article class="tracker-row tracker-row-without-date">
+                            <div class="tracker-row-main">
+                                <h3>@item.Name</h3>
+                                <span>Expires @item.ExpiresOn.ToString("MMM d, yyyy") · alert @item.LeadTimeDays days before</span>
+                            </div>
+                            <div class="tracker-row-meta">
+                                <strong>@item.Quantity on hand</strong>
+                                <span class="tracker-badge @(isLow ? "tracker-badge-danger" : string.Empty)">@(isLow ? "Low stock" : $"Threshold {item.LowStockThreshold}")</span>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<FirstAidItem> _items = [];
+    private string _name = string.Empty;
+    private int _quantity = 1;
+    private int _lowStockThreshold = 2;
+    private DateOnly _expiresOn = DateOnly.FromDateTime(DateTime.Today.AddYears(1));
+    private int _leadTimeDays = 30;
+    private string? _loadError;
+    private string? _saveError;
+    private bool _isLoading = true;
+    private bool _isSaving;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+        try
+        {
+            if (await HouseholdClient.GetMineAsync() is null)
+            {
+                _loadError = "Complete Household setup before tracking first-aid stock.";
+                return;
+            }
+            _items = await FirstAidClient.GetAllAsync();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/first-aid", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "First-aid stock could not be loaded.";
+        }
+        finally { _isLoading = false; }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_name)) return;
+        _isSaving = true;
+        _saveError = null;
+        try
+        {
+            await FirstAidClient.CreateAsync(_name.Trim(), _quantity, _lowStockThreshold, _expiresOn, _leadTimeDays);
+            _name = string.Empty;
+            _items = await FirstAidClient.GetAllAsync();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/first-aid", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _saveError = "The first-aid Item could not be added.";
+        }
+        finally { _isSaving = false; }
+    }
+}

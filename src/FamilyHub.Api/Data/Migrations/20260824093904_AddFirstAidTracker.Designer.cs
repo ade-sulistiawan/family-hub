@@ -3,6 +3,7 @@ using System;
 using FamilyHub.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FamilyHub.Api.Data.Migrations
 {
     [DbContext(typeof(FamilyHubDbContext))]
-    partial class FamilyHubDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260824093904_AddFirstAidTracker")]
+    partial class AddFirstAidTracker
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -186,76 +189,6 @@ namespace FamilyHub.Api.Data.Migrations
                     b.ToTable("Items");
                 });
 
-            modelBuilder.Entity("FamilyHub.Api.Medications.DoseLog", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("FamilyMemberId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("LoggedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("MedicationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FamilyMemberId");
-
-                    b.HasIndex("MedicationId");
-
-                    b.ToTable("DoseLogs");
-                });
-
-            modelBuilder.Entity("FamilyHub.Api.Medications.Medication", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AssignedFamilyMemberId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Dosage")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("HouseholdId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("MinimumHoursBetweenDoses")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<TimeOnly?>("ScheduledTime")
-                        .HasColumnType("time without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssignedFamilyMemberId");
-
-                    b.HasIndex("HouseholdId");
-
-                    b.ToTable("Medications");
-                });
-
             modelBuilder.Entity("FamilyHub.Api.Warranties.WarrantyFacet", b =>
                 {
                     b.Property<Guid>("ItemId")
@@ -328,36 +261,6 @@ namespace FamilyHub.Api.Data.Migrations
 
             modelBuilder.Entity("FamilyHub.Api.Items.Item", b =>
                 {
-                    b.HasOne("FamilyHub.Api.Households.Household", null)
-                        .WithMany()
-                        .HasForeignKey("HouseholdId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("FamilyHub.Api.Medications.DoseLog", b =>
-                {
-                    b.HasOne("FamilyHub.Api.Households.FamilyMember", null)
-                        .WithMany()
-                        .HasForeignKey("FamilyMemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("FamilyHub.Api.Medications.Medication", null)
-                        .WithMany()
-                        .HasForeignKey("MedicationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("FamilyHub.Api.Medications.Medication", b =>
-                {
-                    b.HasOne("FamilyHub.Api.Households.FamilyMember", null)
-                        .WithMany()
-                        .HasForeignKey("AssignedFamilyMemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("FamilyHub.Api.Households.Household", null)
                         .WithMany()
                         .HasForeignKey("HouseholdId")

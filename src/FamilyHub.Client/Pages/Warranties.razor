@@ -1,0 +1,130 @@
+@page "/warranties"
+@using FamilyHub.Services
+@inject WarrantyClient WarrantyClient
+@inject HouseholdClient HouseholdClient
+@inject NavigationManager Navigation
+
+<PageTitle>Warranties | Family Hub</PageTitle>
+
+<div class="tracker-page">
+    <header class="tracker-header">
+        <div><p class="tracker-eyebrow">Warranty &amp; Receipt Archiver</p><h1>Warranties</h1></div>
+        <span>References stay linked to Paperless-ngx</span>
+    </header>
+
+    @if (_isLoading)
+    {
+        <div class="tracker-state" role="status">Loading warranties...</div>
+    }
+    else if (_loadError is not null)
+    {
+        <div class="tracker-notice tracker-error" role="alert"><span>@_loadError</span><button type="button" class="tracker-text-action" @onclick="LoadAsync">Try again</button></div>
+    }
+    else
+    {
+        <section class="tracker-editor" aria-labelledby="add-warranty-heading">
+            <div class="tracker-section-heading"><h2 id="add-warranty-heading">Add warranty details</h2><span>No document bytes are stored here</span></div>
+            <form class="tracker-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+                <label class="tracker-field-wide"><span>Item name</span><input required maxlength="120" placeholder="e.g. Washing machine" @bind="_name" /></label>
+                <label><span>Purchased</span><input type="date" @bind="_purchasedOn" /></label>
+                <label><span>Warranty ends</span><input type="date" @bind="_warrantyExpiresOn" /></label>
+                <label class="tracker-field-wide"><span>Paperless Document Reference</span><input maxlength="200" placeholder="External document ID" @bind="_documentExternalId" /></label>
+                <button type="submit" class="tracker-primary" disabled="@_isSaving">@(_isSaving ? "Adding..." : "Add warranty")</button>
+            </form>
+            @if (_saveError is not null) { <p class="tracker-form-error" role="alert">@_saveError</p> }
+        </section>
+
+        <section class="tracker-list" aria-labelledby="warranty-list-heading">
+            <div class="tracker-section-heading"><h2 id="warranty-list-heading">Warranty register</h2><span>@_items.Count @(_items.Count == 1 ? "item" : "items")</span></div>
+            @if (_items.Count == 0)
+            {
+                <div class="tracker-empty"><strong>No warranties</strong><span>Add purchase details above.</span></div>
+            }
+            else
+            {
+                <div class="tracker-rows">
+                    @foreach (var item in _items)
+                    {
+                        <article class="tracker-row tracker-row-without-date">
+                            <div class="tracker-row-main">
+                                <h3>@item.Name</h3>
+                                <span>@GetPurchaseText(item)</span>
+                            </div>
+                            <div class="tracker-row-meta">
+                                <strong>@GetWarrantyText(item)</strong>
+                                <span>@(item.DocumentExternalId is null ? "No Document Reference" : $"Document {item.DocumentExternalId}")</span>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<WarrantyItem> _items = [];
+    private string _name = string.Empty;
+    private DateOnly? _purchasedOn = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly? _warrantyExpiresOn;
+    private string? _documentExternalId;
+    private string? _loadError;
+    private string? _saveError;
+    private bool _isLoading = true;
+    private bool _isSaving;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+        try
+        {
+            if (await HouseholdClient.GetMineAsync() is null)
+            {
+                _loadError = "Complete Household setup before archiving warranties.";
+                return;
+            }
+            _items = await WarrantyClient.GetAllAsync();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/warranties", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Warranties could not be loaded.";
+        }
+        finally { _isLoading = false; }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_name)) return;
+        _isSaving = true;
+        _saveError = null;
+        try
+        {
+            await WarrantyClient.CreateAsync(_name.Trim(), _purchasedOn, _warrantyExpiresOn, _documentExternalId);
+            _name = string.Empty;
+            _documentExternalId = null;
+            _items = await WarrantyClient.GetAllAsync();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/warranties", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _saveError = "The warranty could not be added. Check the dates and try again.";
+        }
+        finally { _isSaving = false; }
+    }
+
+    private static string GetPurchaseText(WarrantyItem item) =>
+        item.PurchasedOn is null ? "Purchase date not recorded" : $"Purchased {item.PurchasedOn:MMM d, yyyy}";
+
+    private static string GetWarrantyText(WarrantyItem item) =>
+        item.WarrantyExpiresOn is null ? "No warranty end date" : $"Covered until {item.WarrantyExpiresOn:MMM d, yyyy}";
+}

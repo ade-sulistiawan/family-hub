@@ -1,5 +1,10 @@
 using FamilyHub.Api.Chores;
+using FamilyHub.Api.Expiry;
+using FamilyHub.Api.FirstAid;
 using FamilyHub.Api.Households;
+using FamilyHub.Api.Items;
+using FamilyHub.Api.Medications;
+using FamilyHub.Api.Warranties;
 using Microsoft.EntityFrameworkCore;
 
 namespace FamilyHub.Api.Data;
@@ -10,6 +15,12 @@ public class FamilyHubDbContext(DbContextOptions<FamilyHubDbContext> options) : 
     public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();
     public DbSet<Chore> Chores => Set<Chore>();
     public DbSet<ChoreOccurrence> ChoreOccurrences => Set<ChoreOccurrence>();
+    public DbSet<Item> Items => Set<Item>();
+    public DbSet<ExpiryFacet> ExpiryFacets => Set<ExpiryFacet>();
+    public DbSet<WarrantyFacet> WarrantyFacets => Set<WarrantyFacet>();
+    public DbSet<StockFacet> StockFacets => Set<StockFacet>();
+    public DbSet<Medication> Medications => Set<Medication>();
+    public DbSet<DoseLog> DoseLogs => Set<DoseLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +45,43 @@ public class FamilyHubDbContext(DbContextOptions<FamilyHubDbContext> options) : 
         modelBuilder.Entity<ChoreOccurrence>(entity =>
         {
             entity.HasOne<Chore>().WithMany().HasForeignKey(occurrence => occurrence.ChoreId);
+        });
+
+        modelBuilder.Entity<Item>(entity =>
+        {
+            entity.HasOne<Household>().WithMany().HasForeignKey(item => item.HouseholdId);
+        });
+
+        modelBuilder.Entity<ExpiryFacet>(entity =>
+        {
+            entity.HasKey(expiry => expiry.ItemId);
+            entity.HasOne<Item>().WithOne().HasForeignKey<ExpiryFacet>(expiry => expiry.ItemId);
+        });
+
+        modelBuilder.Entity<WarrantyFacet>(entity =>
+        {
+            entity.HasKey(warranty => warranty.ItemId);
+            entity.HasOne<Item>().WithOne().HasForeignKey<WarrantyFacet>(warranty => warranty.ItemId);
+        });
+
+        modelBuilder.Entity<StockFacet>(entity =>
+        {
+            entity.HasKey(stock => stock.ItemId);
+            entity.HasOne<Item>().WithOne().HasForeignKey<StockFacet>(stock => stock.ItemId);
+        });
+
+        modelBuilder.Entity<Medication>(entity =>
+        {
+            entity.Property(medication => medication.Kind).HasConversion<string>();
+            entity.HasOne<Household>().WithMany().HasForeignKey(medication => medication.HouseholdId);
+            entity.HasOne<FamilyMember>().WithMany().HasForeignKey(medication => medication.AssignedFamilyMemberId);
+        });
+
+        modelBuilder.Entity<DoseLog>(entity =>
+        {
+            entity.Property(log => log.Status).HasConversion<string>();
+            entity.HasOne<Medication>().WithMany().HasForeignKey(log => log.MedicationId);
+            entity.HasOne<FamilyMember>().WithMany().HasForeignKey(log => log.FamilyMemberId);
         });
     }
 }

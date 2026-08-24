@@ -1,0 +1,168 @@
+@page "/expiry"
+@using FamilyHub.Services
+@inject ExpiryClient ExpiryClient
+@inject HouseholdClient HouseholdClient
+@inject NavigationManager Navigation
+
+<PageTitle>Expiry Tracker | Family Hub</PageTitle>
+
+<div class="tracker-page">
+    <header class="tracker-header">
+        <div>
+            <p class="tracker-eyebrow">Expiry Tracker</p>
+            <h1>Expiring items</h1>
+        </div>
+        <span>Plan before things go to waste</span>
+    </header>
+
+    @if (_isLoading)
+    {
+        <div class="tracker-state" role="status">Loading expiring items...</div>
+    }
+    else if (_loadError is not null)
+    {
+        <div class="tracker-notice tracker-error" role="alert">
+            <span>@_loadError</span>
+            <button type="button" class="tracker-text-action" @onclick="LoadAsync">Try again</button>
+        </div>
+    }
+    else
+    {
+        <section class="tracker-editor" aria-labelledby="add-expiry-heading">
+            <div class="tracker-section-heading">
+                <h2 id="add-expiry-heading">Add an expiring item</h2>
+                <span>Lead Time controls the reminder window</span>
+            </div>
+            <form class="tracker-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+                <label class="tracker-field-wide">
+                    <span>Item name</span>
+                    <input required maxlength="120" placeholder="e.g. Milk" @bind="_name" />
+                </label>
+                <label>
+                    <span>Expiry date</span>
+                    <input type="date" required @bind="_expiresOn" />
+                </label>
+                <label>
+                    <span>Lead Time (days)</span>
+                    <input type="number" min="0" max="3650" required @bind="_leadTimeDays" />
+                </label>
+                <button type="submit" class="tracker-primary" disabled="@_isSaving">
+                    @(_isSaving ? "Adding..." : "Add item")
+                </button>
+            </form>
+            @if (_saveError is not null)
+            {
+                <p class="tracker-form-error" role="alert">@_saveError</p>
+            }
+        </section>
+
+        <section class="tracker-list" aria-labelledby="expiry-list-heading">
+            <div class="tracker-section-heading">
+                <h2 id="expiry-list-heading">Expiry timeline</h2>
+                <span>@_items.Count @(_items.Count == 1 ? "item" : "items")</span>
+            </div>
+            @if (_items.Count == 0)
+            {
+                <div class="tracker-empty"><strong>No expiring items</strong><span>Add the first one above.</span></div>
+            }
+            else
+            {
+                <div class="tracker-rows">
+                    @foreach (var item in _items)
+                    {
+                        <article class="tracker-row">
+                            <div class="tracker-date-tile">
+                                <span>@item.ExpiresOn.ToString("MMM")</span>
+                                <strong>@item.ExpiresOn.Day</strong>
+                            </div>
+                            <div class="tracker-row-main">
+                                <h3>@item.Name</h3>
+                                <span>Reminder @item.LeadTimeDays days before</span>
+                            </div>
+                            <span class="tracker-badge @GetExpiryClass(item)">@GetExpiryLabel(item)</span>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<ExpiryItem> _items = [];
+    private string _name = string.Empty;
+    private DateOnly _expiresOn = DateOnly.FromDateTime(DateTime.Today.AddDays(7));
+    private int _leadTimeDays = 3;
+    private string? _loadError;
+    private string? _saveError;
+    private bool _isLoading = true;
+    private bool _isSaving;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+        try
+        {
+            if (await HouseholdClient.GetMineAsync() is null)
+            {
+                _loadError = "Complete Household setup before tracking expiry dates.";
+                return;
+            }
+            _items = await ExpiryClient.GetAllAsync();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/expiry", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Expiring items could not be loaded.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_name)) return;
+        _isSaving = true;
+        _saveError = null;
+        try
+        {
+            await ExpiryClient.CreateAsync(_name.Trim(), _expiresOn, _leadTimeDays);
+            _name = string.Empty;
+            _items = await ExpiryClient.GetAllAsync();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/expiry", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _saveError = "The expiring item could not be added.";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private static int DaysUntil(ExpiryItem item) =>
+        item.ExpiresOn.DayNumber - DateOnly.FromDateTime(DateTime.Today).DayNumber;
+
+    private static string GetExpiryClass(ExpiryItem item) =>
+        DaysUntil(item) < 0 ? "tracker-badge-danger" : DaysUntil(item) <= item.LeadTimeDays ? "tracker-badge-warning" : string.Empty;
+
+    private static string GetExpiryLabel(ExpiryItem item) => DaysUntil(item) switch
+    {
+        < 0 => "Expired",
+        0 => "Today",
+        1 => "Tomorrow",
+        var days => $"{days} days",
+    };
+}

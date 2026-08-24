@@ -1,6 +1,10 @@
-using FamilyHub.Api.Data;
 using FamilyHub.Api.Chores;
+using FamilyHub.Api.Data;
+using FamilyHub.Api.Expiry;
+using FamilyHub.Api.FirstAid;
 using FamilyHub.Api.Households;
+using FamilyHub.Api.Medications;
+using FamilyHub.Api.Warranties;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -77,6 +81,10 @@ app.MapPost("/logout", async (HttpContext context) =>
 
 app.MapHouseholdEndpoints();
 app.MapChoreEndpoints();
+app.MapExpiryEndpoints();
+app.MapWarrantyEndpoints();
+app.MapFirstAidEndpoints();
+app.MapMedicationEndpoints();
 
 app.MapFallbackToFile("index.html");
 
