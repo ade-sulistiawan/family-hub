@@ -1,4 +1,5 @@
 using FamilyHub.Api.Data;
+using FamilyHub.Api.Chores;
 using FamilyHub.Api.Households;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -75,6 +76,7 @@ app.MapPost("/logout", async (HttpContext context) =>
 });
 
 app.MapHouseholdEndpoints();
+app.MapChoreEndpoints();
 
 app.MapFallbackToFile("index.html");
 

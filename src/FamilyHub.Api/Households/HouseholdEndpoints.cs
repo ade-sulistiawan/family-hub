@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FamilyHub.Api.Authentication;
 using FamilyHub.Api.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,7 +20,7 @@ public static class HouseholdEndpoints
 
     private static async Task<IResult> GetMine(ClaimsPrincipal user, FamilyHubDbContext db)
     {
-        var member = await FindCurrentMember(user, db);
+        var member = await CurrentFamilyMember.FindAsync(user, db);
         if (member is null)
         {
             return Results.NotFound();
@@ -31,7 +32,7 @@ public static class HouseholdEndpoints
 
     private static async Task<IResult> Create(CreateHouseholdRequest request, ClaimsPrincipal user, FamilyHubDbContext db)
     {
-        if (await FindCurrentMember(user, db) is not null)
+        if (await CurrentFamilyMember.FindAsync(user, db) is not null)
         {
             return Results.Conflict("This Google account already belongs to a Household.");
         }
@@ -51,7 +52,7 @@ public static class HouseholdEndpoints
 
     private static async Task<IResult> Join(JoinHouseholdRequest request, ClaimsPrincipal user, FamilyHubDbContext db)
     {
-        if (await FindCurrentMember(user, db) is not null)
+        if (await CurrentFamilyMember.FindAsync(user, db) is not null)
         {
             return Results.Conflict("This Google account already belongs to a Household.");
         }
@@ -84,12 +85,6 @@ public static class HouseholdEndpoints
         await db.SaveChangesAsync();
 
         return member;
-    }
-
-    private static Task<FamilyMember?> FindCurrentMember(ClaimsPrincipal user, FamilyHubDbContext db)
-    {
-        var subjectId = GetSubjectId(user);
-        return db.FamilyMembers.SingleOrDefaultAsync(m => m.GoogleSubjectId == subjectId);
     }
 
     private static string GetSubjectId(ClaimsPrincipal user) =>
