@@ -5,6 +5,8 @@ using FamilyHub.Api.FirstAid;
 using FamilyHub.Api.Households;
 using FamilyHub.Api.Medications;
 using FamilyHub.Api.Notifications;
+using FamilyHub.Api.Paperless;
+using FamilyHub.Api.Settings;
 using FamilyHub.Api.Warranties;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -16,6 +18,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddDataProtection();
+builder.Services.AddHttpClient<IPaperlessDocumentClient, PaperlessDocumentClient>();
 
 builder.Services.AddDbContext<FamilyHubDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("FamilyHub")));
@@ -91,6 +95,7 @@ app.MapWarrantyEndpoints();
 app.MapFirstAidEndpoints();
 app.MapMedicationEndpoints();
 app.MapPushSubscriptionEndpoints();
+app.MapPaperlessSettingsEndpoints();
 
 app.MapFallbackToFile("index.html");
 

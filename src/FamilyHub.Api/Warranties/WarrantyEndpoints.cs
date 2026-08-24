@@ -2,7 +2,12 @@ using System.Security.Claims;
 using FamilyHub.Api.Authentication;
 using FamilyHub.Api.Data;
 using FamilyHub.Api.Items;
+using FamilyHub.Api.Paperless;
+using FamilyHub.Api.Settings;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Security.Cryptography;
 
 namespace FamilyHub.Api.Warranties;
 
@@ -13,6 +18,7 @@ public static class WarrantyEndpoints
         var group = app.MapGroup("/api/warranty-items").RequireAuthorization();
         group.MapGet("/", GetAll);
         group.MapPost("/", Create);
+        group.MapPost("/with-document", CreateWithDocument).DisableAntiforgery();
         return group;
     }
 
@@ -93,6 +99,144 @@ public static class WarrantyEndpoints
             warranty.PurchasedOn,
             warranty.WarrantyExpiresOn,
             warranty.DocumentExternalId));
+    }
+
+    private static async Task<IResult> CreateWithDocument(
+        HttpRequest request,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        IDataProtectionProvider dataProtectionProvider,
+        IPaperlessDocumentClient paperlessClient,
+        CancellationToken cancellationToken)
+    {
+        if (!request.HasFormContentType)
+        {
+            return Results.BadRequest("Submit warranty details as multipart form data.");
+        }
+
+        var form = await request.ReadFormAsync(cancellationToken);
+        var name = form["name"].ToString().Trim();
+        if (string.IsNullOrEmpty(name) || name.Length > 120)
+        {
+            return Results.BadRequest("Item name must be between 1 and 120 characters.");
+        }
+
+        if (!TryParseOptionalDate(form["purchasedOn"], out var purchasedOn)
+            || !TryParseOptionalDate(form["warrantyExpiresOn"], out var warrantyExpiresOn))
+        {
+            return Results.BadRequest("Purchase and warranty dates must use YYYY-MM-DD.");
+        }
+
+        if (warrantyExpiresOn < purchasedOn)
+        {
+            return Results.BadRequest("Warranty end date cannot be before the purchase date.");
+        }
+
+        var document = form.Files.GetFile("document");
+        if (document is null || document.Length == 0)
+        {
+            return Results.BadRequest("Choose a warranty or receipt image.");
+        }
+
+        if (document.Length > 10 * 1024 * 1024)
+        {
+            return Results.BadRequest("The image cannot exceed 10 MB.");
+        }
+
+        if (!document.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            return Results.BadRequest("Only image files can be uploaded.");
+        }
+
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var settings = await db.PaperlessSettings
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.HouseholdId == currentMember.HouseholdId,
+                cancellationToken);
+        if (settings is null)
+        {
+            return Results.Conflict("Configure Paperless-ngx in Settings before uploading a document.");
+        }
+
+        string apiToken;
+        try
+        {
+            apiToken = PaperlessSettingsEndpoints.UnprotectApiToken(settings, dataProtectionProvider);
+        }
+        catch (CryptographicException)
+        {
+            return Results.Conflict("Save the Paperless-ngx API token again in Settings.");
+        }
+
+        string documentExternalId;
+        try
+        {
+            await using var documentStream = document.OpenReadStream();
+            documentExternalId = await paperlessClient.UploadAsync(
+                new PaperlessConnection(new Uri(settings.BaseUrl), apiToken),
+                documentStream,
+                Path.GetFileName(document.FileName),
+                document.ContentType,
+                name,
+                cancellationToken);
+        }
+        catch (PaperlessUploadException exception)
+        {
+            return Results.Problem(
+                detail: exception.Message,
+                statusCode: StatusCodes.Status502BadGateway,
+                title: "Paperless-ngx upload failed");
+        }
+
+        var item = new Item
+        {
+            Id = Guid.NewGuid(),
+            HouseholdId = currentMember.HouseholdId,
+            Name = name,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        var warranty = new WarrantyFacet
+        {
+            ItemId = item.Id,
+            PurchasedOn = purchasedOn,
+            WarrantyExpiresOn = warrantyExpiresOn,
+            DocumentExternalId = documentExternalId,
+        };
+
+        db.Items.Add(item);
+        db.WarrantyFacets.Add(warranty);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return Results.Created($"/api/warranty-items/{item.Id}", new WarrantyItemResponse(
+            item.Id,
+            item.Name,
+            warranty.PurchasedOn,
+            warranty.WarrantyExpiresOn,
+            warranty.DocumentExternalId));
+    }
+
+    private static bool TryParseOptionalDate(string? value, out DateOnly? date)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            date = null;
+            return true;
+        }
+
+        if (DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+        {
+            date = parsed;
+            return true;
+        }
+
+        date = null;
+        return false;
     }
 }
 

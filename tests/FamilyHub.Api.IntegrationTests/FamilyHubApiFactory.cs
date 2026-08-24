@@ -1,5 +1,6 @@
 using FamilyHub.Api.Data;
 using FamilyHub.Api.Notifications;
+using FamilyHub.Api.Paperless;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -36,6 +37,8 @@ public class FamilyHubApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
             services.AddSingleton<FakePushNotificationSender>();
             services.AddSingleton<IPushNotificationSender>(provider =>
                 provider.GetRequiredService<FakePushNotificationSender>());
+            services.RemoveAll<IPaperlessDocumentClient>();
+            services.AddSingleton<IPaperlessDocumentClient, FakePaperlessDocumentClient>();
 
             services.AddAuthentication(TestAuthHandler.SchemeName)
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });

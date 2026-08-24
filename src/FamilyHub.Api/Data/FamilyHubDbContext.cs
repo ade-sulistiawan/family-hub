@@ -5,6 +5,7 @@ using FamilyHub.Api.Households;
 using FamilyHub.Api.Items;
 using FamilyHub.Api.Medications;
 using FamilyHub.Api.Notifications;
+using FamilyHub.Api.Settings;
 using FamilyHub.Api.Warranties;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,6 +25,7 @@ public class FamilyHubDbContext(DbContextOptions<FamilyHubDbContext> options) : 
     public DbSet<DoseLog> DoseLogs => Set<DoseLog>();
     public DbSet<BrowserPushSubscription> BrowserPushSubscriptions => Set<BrowserPushSubscription>();
     public DbSet<MedicationReminderDelivery> MedicationReminderDeliveries => Set<MedicationReminderDelivery>();
+    public DbSet<PaperlessSettings> PaperlessSettings => Set<PaperlessSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -104,6 +106,12 @@ public class FamilyHubDbContext(DbContextOptions<FamilyHubDbContext> options) : 
             entity.HasOne<Medication>().WithMany().HasForeignKey(delivery => delivery.MedicationId);
             entity.HasOne<BrowserPushSubscription>().WithMany()
                 .HasForeignKey(delivery => delivery.BrowserPushSubscriptionId);
+        });
+
+        modelBuilder.Entity<PaperlessSettings>(entity =>
+        {
+            entity.HasKey(settings => settings.HouseholdId);
+            entity.HasOne<Household>().WithOne().HasForeignKey<PaperlessSettings>(settings => settings.HouseholdId);
         });
     }
 }

@@ -12,6 +12,7 @@ builder.Services.AddScoped<HouseholdClient>();
 builder.Services.AddScoped<ChoreClient>();
 builder.Services.AddScoped<ExpiryClient>();
 builder.Services.AddScoped<WarrantyClient>();
+builder.Services.AddScoped<PaperlessSettingsClient>();
 builder.Services.AddScoped<FirstAidClient>();
 builder.Services.AddScoped<MedicationClient>();
 builder.Services.AddScoped<PushNotificationClient>();

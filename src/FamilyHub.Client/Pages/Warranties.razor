@@ -23,13 +23,13 @@
     else
     {
         <section class="tracker-editor" aria-labelledby="add-warranty-heading">
-            <div class="tracker-section-heading"><h2 id="add-warranty-heading">Add warranty details</h2><span>No document bytes are stored here</span></div>
+            <div class="tracker-section-heading"><h2 id="add-warranty-heading">Add warranty details</h2><span>Images are stored in Paperless-ngx</span></div>
             <form class="tracker-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
                 <label class="tracker-field-wide"><span>Item name</span><input required maxlength="120" placeholder="e.g. Washing machine" @bind="_name" /></label>
                 <label><span>Purchased</span><input type="date" @bind="_purchasedOn" /></label>
                 <label><span>Warranty ends</span><input type="date" @bind="_warrantyExpiresOn" /></label>
-                <label class="tracker-field-wide"><span>Paperless Document Reference</span><input maxlength="200" placeholder="External document ID" @bind="_documentExternalId" /></label>
-                <button type="submit" class="tracker-primary" disabled="@_isSaving">@(_isSaving ? "Adding..." : "Add warranty")</button>
+                <label class="tracker-field-wide"><span>Warranty or receipt image</span><InputFile @key="_fileInputKey" OnChange="SelectDocument" accept="image/*" required /></label>
+                <button type="submit" class="tracker-primary" disabled="@(_isSaving || _document is null)">@(_isSaving ? "Uploading..." : "Add warranty")</button>
             </form>
             @if (_saveError is not null) { <p class="tracker-form-error" role="alert">@_saveError</p> }
         </section>
@@ -67,7 +67,8 @@
     private string _name = string.Empty;
     private DateOnly? _purchasedOn = DateOnly.FromDateTime(DateTime.Today);
     private DateOnly? _warrantyExpiresOn;
-    private string? _documentExternalId;
+    private IBrowserFile? _document;
+    private int _fileInputKey;
     private string? _loadError;
     private string? _saveError;
     private bool _isLoading = true;
@@ -101,25 +102,36 @@
 
     private async Task CreateAsync()
     {
-        if (string.IsNullOrWhiteSpace(_name)) return;
+        if (string.IsNullOrWhiteSpace(_name) || _document is null) return;
         _isSaving = true;
         _saveError = null;
         try
         {
-            await WarrantyClient.CreateAsync(_name.Trim(), _purchasedOn, _warrantyExpiresOn, _documentExternalId);
+            await WarrantyClient.CreateWithDocumentAsync(_name.Trim(), _purchasedOn, _warrantyExpiresOn, _document);
             _name = string.Empty;
-            _documentExternalId = null;
+            _document = null;
+            _fileInputKey++;
             _items = await WarrantyClient.GetAllAsync();
         }
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
             Navigation.NavigateTo("/login?returnUrl=/warranties", forceLoad: true);
         }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            _saveError = "Configure Paperless-ngx in Settings before uploading a warranty image.";
+        }
         catch (HttpRequestException)
         {
-            _saveError = "The warranty could not be added. Check the dates and try again.";
+            _saveError = "The warranty image could not be uploaded. Check the file and dates, then try again.";
         }
         finally { _isSaving = false; }
+    }
+
+    private void SelectDocument(InputFileChangeEventArgs eventArgs)
+    {
+        _document = eventArgs.File;
+        _saveError = null;
     }
 
     private static string GetPurchaseText(WarrantyItem item) =>

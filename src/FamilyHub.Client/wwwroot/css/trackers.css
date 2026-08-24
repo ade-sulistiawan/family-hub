@@ -312,9 +312,14 @@
   color: #963a30;
 }
 
-.tracker-form-error {
+.tracker-form-error,
+.tracker-form-success {
   font-size: 0.84rem;
   margin: 0.75rem 0 0;
+}
+
+.tracker-form-success {
+  color: #23634e;
 }
 
 .tracker-inline-error {
