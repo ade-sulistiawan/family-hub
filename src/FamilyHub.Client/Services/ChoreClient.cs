@@ -20,6 +20,15 @@ public class ChoreClient(HttpClient http)
 
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task CompleteAsync(Guid choreOccurrenceId)
+    {
+        var response = await http.PutAsync(
+            $"/api/chores/occurrences/{choreOccurrenceId}/completion",
+            null);
+
+        response.EnsureSuccessStatusCode();
+    }
 }
 
 public record ChoreListItem(

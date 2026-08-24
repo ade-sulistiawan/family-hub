@@ -175,11 +175,16 @@ h1 {
   line-height: 1.1;
 }
 
+.chore-details {
+  min-width: 0;
+}
+
 .chore-details h3 {
   color: #18352c;
   font-size: 1rem;
   font-weight: 750;
   margin: 0 0 0.2rem;
+  overflow-wrap: anywhere;
 }
 
 .chore-details span,
@@ -188,12 +193,60 @@ h1 {
   font-size: 0.78rem;
 }
 
+.chore-item.is-complete {
+  background: #f7faf8;
+}
+
+.chore-item.is-complete .date-tile {
+  background: #dce7e2;
+  color: #5f716a;
+}
+
+.chore-item.is-complete .chore-details h3 {
+  color: #697873;
+  text-decoration: line-through;
+}
+
+.chore-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.65rem;
+  justify-content: end;
+}
+
 .status {
   background: #f3e9e4;
   border-radius: 999px;
   color: #93462f;
   font-weight: 700;
   padding: 0.35rem 0.65rem;
+}
+
+.completion-action {
+  background: #23634e;
+  border: 1px solid #23634e;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 750;
+  min-height: 36px;
+  min-width: 88px;
+  padding: 0.45rem 0.7rem;
+}
+
+.completion-action:hover:not(:disabled) {
+  background: #184b3b;
+  border-color: #184b3b;
+}
+
+.completion-action:disabled {
+  background: #e5ebe8;
+  border-color: #ced8d4;
+  color: #5d6e67;
+}
+
+.action-error {
+  padding: 0.75rem 0 0;
 }
 
 .empty-state {
@@ -256,5 +309,15 @@ h1 {
   .empty-state {
     align-items: start;
     flex-direction: column;
+  }
+
+  .chore-item {
+    align-items: start;
+    grid-template-columns: 54px 1fr;
+  }
+
+  .chore-actions {
+    grid-column: 2;
+    justify-content: space-between;
   }
 }

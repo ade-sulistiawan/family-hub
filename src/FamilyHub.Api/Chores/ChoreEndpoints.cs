@@ -12,6 +12,7 @@ public static class ChoreEndpoints
         var group = app.MapGroup("/api/chores").RequireAuthorization();
         group.MapGet("/", GetAll);
         group.MapPost("/", Create);
+        group.MapPut("/occurrences/{choreOccurrenceId:guid}/completion", CompleteOccurrence);
         return group;
     }
 
@@ -95,6 +96,39 @@ public static class ChoreEndpoints
             chore.AssignedFamilyMemberId,
             occurrence.ScheduledDate,
             chore.Recurrence.ToString()));
+    }
+
+    private static async Task<IResult> CompleteOccurrence(
+        Guid choreOccurrenceId,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db)
+    {
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var occurrence = await (
+            from candidate in db.ChoreOccurrences
+            join chore in db.Chores on candidate.ChoreId equals chore.Id
+            where candidate.Id == choreOccurrenceId &&
+                chore.HouseholdId == currentMember.HouseholdId
+            select candidate)
+            .SingleOrDefaultAsync();
+
+        if (occurrence is null)
+        {
+            return Results.NotFound();
+        }
+
+        if (occurrence.CompletedAt is null)
+        {
+            occurrence.CompletedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+        }
+
+        return Results.NoContent();
     }
 }
 

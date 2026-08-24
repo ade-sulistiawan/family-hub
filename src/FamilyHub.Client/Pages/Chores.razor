@@ -53,11 +53,16 @@ else if (_household is not null)
         }
     </section>
 
-    <section class="chore-list" aria-labelledby="upcoming-heading">
+    <section class="chore-list" aria-labelledby="chore-list-heading">
         <div class="section-heading">
-            <h2 id="upcoming-heading">Upcoming</h2>
+            <h2 id="chore-list-heading">Chore list</h2>
             <span>@_chores.Count @(_chores.Count == 1 ? "chore" : "chores")</span>
         </div>
+
+        @if (_actionError is not null)
+        {
+            <div class="notice notice-error action-error" role="alert">@_actionError</div>
+        }
 
         @if (_chores.Count == 0)
         {
@@ -71,7 +76,8 @@ else if (_household is not null)
             <div class="chore-items">
                 @foreach (var chore in _chores)
                 {
-                    <article class="chore-item">
+                    var isCompleted = chore.CompletedAt is not null;
+                    <article class="chore-item @(isCompleted ? "is-complete" : null)">
                         <div class="date-tile">
                             <span>@chore.ScheduledDate.ToString("MMM")</span>
                             <strong>@chore.ScheduledDate.Day</strong>
@@ -80,7 +86,15 @@ else if (_household is not null)
                             <h3>@chore.Title</h3>
                             <span>@chore.AssignedDisplayName</span>
                         </div>
-                        <span class="status">One-off</span>
+                        <div class="chore-actions">
+                            <span class="status">One-off</span>
+                            <button type="button"
+                                    class="completion-action"
+                                    disabled="@(isCompleted || _completingOccurrenceId == chore.ChoreOccurrenceId)"
+                                    @onclick="() => CompleteAsync(chore)">
+                                @(isCompleted ? "Done" : _completingOccurrenceId == chore.ChoreOccurrenceId ? "Saving..." : "Mark done")
+                            </button>
+                        </div>
                     </article>
                 }
             </div>
@@ -95,8 +109,10 @@ else if (_household is not null)
     private DateOnly _scheduledDate = DateOnly.FromDateTime(DateTime.Today);
     private string? _loadError;
     private string? _saveError;
+    private string? _actionError;
     private bool _isLoading = true;
     private bool _isSaving;
+    private Guid? _completingOccurrenceId;
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -162,6 +178,30 @@ else if (_household is not null)
         finally
         {
             _isSaving = false;
+        }
+    }
+
+    private async Task CompleteAsync(ChoreListItem chore)
+    {
+        _completingOccurrenceId = chore.ChoreOccurrenceId;
+        _actionError = null;
+
+        try
+        {
+            await ChoreClient.CompleteAsync(chore.ChoreOccurrenceId);
+            _chores = await ChoreClient.GetAllAsync();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/chores", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _actionError = $"{chore.Title} could not be marked done.";
+        }
+        finally
+        {
+            _completingOccurrenceId = null;
         }
     }
 }

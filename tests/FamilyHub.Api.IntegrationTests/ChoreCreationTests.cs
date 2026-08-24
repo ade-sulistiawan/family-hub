@@ -90,6 +90,52 @@ public class ChoreCreationTests : IClassFixture<FamilyHubApiFactory>
     }
 
     [Fact]
+    public async Task Family_member_can_complete_a_chore_occurrence_in_their_household()
+    {
+        var client = SignedInClient("chore-completer");
+        var household = await Onboard(client, "Alex");
+        var chore = await CreateChore(
+            client,
+            "Take bins out",
+            household.FamilyMemberId,
+            new DateOnly(2026, 8, 25));
+
+        var response = await client.PutAsync(
+            $"/api/chores/occurrences/{chore.ChoreOccurrenceId}/completion",
+            null);
+        var repeatedResponse = await client.PutAsync(
+            $"/api/chores/occurrences/{chore.ChoreOccurrenceId}/completion",
+            null);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, repeatedResponse.StatusCode);
+        var chores = await client.GetFromJsonAsync<List<ListedChoreResponse>>("/api/chores");
+        Assert.NotNull(Assert.Single(chores!).CompletedAt);
+    }
+
+    [Fact]
+    public async Task Family_member_cannot_complete_a_chore_occurrence_outside_their_household()
+    {
+        var client = SignedInClient("isolated-chore-completer");
+        await Onboard(client, "Alex");
+        var otherClient = SignedInClient("other-chore-completer");
+        var otherHousehold = await Onboard(otherClient, "Sam");
+        var otherChore = await CreateChore(
+            otherClient,
+            "Water plants",
+            otherHousehold.FamilyMemberId,
+            new DateOnly(2026, 8, 25));
+
+        var response = await client.PutAsync(
+            $"/api/chores/occurrences/{otherChore.ChoreOccurrenceId}/completion",
+            null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var otherChores = await otherClient.GetFromJsonAsync<List<ListedChoreResponse>>("/api/chores");
+        Assert.Null(Assert.Single(otherChores!).CompletedAt);
+    }
+
+    [Fact]
     public async Task Chore_title_must_be_between_one_and_120_characters()
     {
         var client = SignedInClient("chore-title-validator");
@@ -126,7 +172,7 @@ public class ChoreCreationTests : IClassFixture<FamilyHubApiFactory>
         return (await response.Content.ReadFromJsonAsync<HouseholdSetupResponse>())!;
     }
 
-    private static async Task CreateChore(
+    private static async Task<CreatedChoreResponse> CreateChore(
         HttpClient client,
         string title,
         Guid assignedFamilyMemberId,
@@ -139,6 +185,7 @@ public class ChoreCreationTests : IClassFixture<FamilyHubApiFactory>
             scheduledDate,
         });
         response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<CreatedChoreResponse>())!;
     }
 
     private sealed record HouseholdSetupResponse(Guid FamilyMemberId);
