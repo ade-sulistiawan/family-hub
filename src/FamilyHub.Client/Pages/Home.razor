@@ -1,0 +1,87 @@
+﻿@page "/"
+@using FamilyHub.Services
+@inject HouseholdClient HouseholdClient
+@inject HttpClient Http
+
+<PageTitle>Family Hub</PageTitle>
+
+@if (_state == State.Loading)
+{
+    <p>Loading&hellip;</p>
+}
+else if (_state == State.SignedOut)
+{
+    <h1>Family Hub</h1>
+    <a class="btn btn-primary" href="/login">Sign in with Google</a>
+}
+else if (_state == State.NeedsOnboarding)
+{
+    <h1>Welcome to Family Hub</h1>
+
+    <h2>Create a new Household</h2>
+    <input @bind="_createDisplayName" placeholder="Your name" />
+    <button class="btn btn-primary" @onclick="CreateHouseholdAsync">Create Household</button>
+
+    <h2>Join an existing Household</h2>
+    <input @bind="_joinCode" placeholder="Join code" />
+    <input @bind="_joinDisplayName" placeholder="Your name" />
+    <button class="btn btn-primary" @onclick="JoinHouseholdAsync">Join Household</button>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <p class="text-danger">@_error</p>
+    }
+}
+else if (_state == State.Ready && _household is not null)
+{
+    <h1>Welcome, @_household.DisplayName</h1>
+    <p>Join code: <strong>@_household.JoinCode</strong> &mdash; share this with the rest of your family.</p>
+}
+
+@code {
+    private enum State { Loading, SignedOut, NeedsOnboarding, Ready }
+
+    private State _state = State.Loading;
+    private HouseholdInfo? _household;
+    private string _createDisplayName = string.Empty;
+    private string _joinCode = string.Empty;
+    private string _joinDisplayName = string.Empty;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        var response = await Http.GetAsync("/api/household/mine");
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            _state = State.SignedOut;
+        }
+        else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _state = State.NeedsOnboarding;
+        }
+        else if (response.IsSuccessStatusCode)
+        {
+            _household = await response.Content.ReadFromJsonAsync<HouseholdInfo>();
+            _state = State.Ready;
+        }
+    }
+
+    private async Task CreateHouseholdAsync()
+    {
+        _household = await HouseholdClient.CreateAsync(_createDisplayName);
+        _error = _household is null ? "Could not create the Household." : null;
+        _state = _household is null ? _state : State.Ready;
+    }
+
+    private async Task JoinHouseholdAsync()
+    {
+        _household = await HouseholdClient.JoinAsync(_joinCode, _joinDisplayName);
+        _error = _household is null ? "That join code wasn't found." : null;
+        _state = _household is null ? _state : State.Ready;
+    }
+}

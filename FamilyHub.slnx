@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FamilyHub.Api/FamilyHub.Api.csproj" />
+    <Project Path="src/FamilyHub.Client/FamilyHub.Client.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FamilyHub.Api.IntegrationTests/FamilyHub.Api.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
