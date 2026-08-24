@@ -69,6 +69,49 @@ public class ChoreCreationTests : IClassFixture<FamilyHubApiFactory>
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Family_member_can_list_only_their_households_chore_occurrences()
+    {
+        var client = SignedInClient("chore-list-owner");
+        var household = await Onboard(client, "Alex");
+        await CreateChore(client, "Take bins out", household.FamilyMemberId, new DateOnly(2026, 8, 25));
+
+        var otherClient = SignedInClient("other-chore-list-owner");
+        var otherHousehold = await Onboard(otherClient, "Sam");
+        await CreateChore(otherClient, "Water plants", otherHousehold.FamilyMemberId, new DateOnly(2026, 8, 26));
+
+        var chores = await client.GetFromJsonAsync<List<ListedChoreResponse>>("/api/chores");
+
+        var chore = Assert.Single(chores!);
+        Assert.Equal("Take bins out", chore.Title);
+        Assert.Equal("Alex", chore.AssignedDisplayName);
+        Assert.Equal(new DateOnly(2026, 8, 25), chore.ScheduledDate);
+        Assert.Null(chore.CompletedAt);
+    }
+
+    [Fact]
+    public async Task Chore_title_must_be_between_one_and_120_characters()
+    {
+        var client = SignedInClient("chore-title-validator");
+        var household = await Onboard(client, "Alex");
+
+        var blankTitleResponse = await client.PostAsJsonAsync("/api/chores", new
+        {
+            title = "   ",
+            assignedFamilyMemberId = household.FamilyMemberId,
+            scheduledDate = new DateOnly(2026, 8, 25),
+        });
+        var longTitleResponse = await client.PostAsJsonAsync("/api/chores", new
+        {
+            title = new string('x', 121),
+            assignedFamilyMemberId = household.FamilyMemberId,
+            scheduledDate = new DateOnly(2026, 8, 25),
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, blankTitleResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, longTitleResponse.StatusCode);
+    }
+
     private HttpClient SignedInClient(string googleSubjectId)
     {
         var client = _factory.CreateClient();
@@ -83,6 +126,21 @@ public class ChoreCreationTests : IClassFixture<FamilyHubApiFactory>
         return (await response.Content.ReadFromJsonAsync<HouseholdSetupResponse>())!;
     }
 
+    private static async Task CreateChore(
+        HttpClient client,
+        string title,
+        Guid assignedFamilyMemberId,
+        DateOnly scheduledDate)
+    {
+        var response = await client.PostAsJsonAsync("/api/chores", new
+        {
+            title,
+            assignedFamilyMemberId,
+            scheduledDate,
+        });
+        response.EnsureSuccessStatusCode();
+    }
+
     private sealed record HouseholdSetupResponse(Guid FamilyMemberId);
 
     private sealed record CreatedChoreResponse(
@@ -92,4 +150,10 @@ public class ChoreCreationTests : IClassFixture<FamilyHubApiFactory>
         Guid AssignedFamilyMemberId,
         DateOnly ScheduledDate,
         string Recurrence);
+
+    private sealed record ListedChoreResponse(
+        string Title,
+        string AssignedDisplayName,
+        DateOnly ScheduledDate,
+        DateTimeOffset? CompletedAt);
 }

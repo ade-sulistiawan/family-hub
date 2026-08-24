@@ -10,8 +10,36 @@ public static class ChoreEndpoints
     public static RouteGroupBuilder MapChoreEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/chores").RequireAuthorization();
+        group.MapGet("/", GetAll);
         group.MapPost("/", Create);
         return group;
+    }
+
+    private static async Task<IResult> GetAll(ClaimsPrincipal user, FamilyHubDbContext db)
+    {
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var chores = await (
+            from occurrence in db.ChoreOccurrences.AsNoTracking()
+            join chore in db.Chores on occurrence.ChoreId equals chore.Id
+            join assignee in db.FamilyMembers on chore.AssignedFamilyMemberId equals assignee.Id
+            where chore.HouseholdId == currentMember.HouseholdId
+            orderby occurrence.ScheduledDate, chore.Title
+            select new ChoreListItemResponse(
+                chore.Id,
+                occurrence.Id,
+                chore.Title,
+                chore.AssignedFamilyMemberId,
+                assignee.DisplayName,
+                occurrence.ScheduledDate,
+                occurrence.CompletedAt))
+            .ToListAsync();
+
+        return Results.Ok(chores);
     }
 
     private static async Task<IResult> Create(
@@ -19,6 +47,12 @@ public static class ChoreEndpoints
         ClaimsPrincipal user,
         FamilyHubDbContext db)
     {
+        var title = request.Title?.Trim();
+        if (string.IsNullOrEmpty(title) || title.Length > 120)
+        {
+            return Results.BadRequest("Chore title must be between 1 and 120 characters.");
+        }
+
         var currentMember = await CurrentFamilyMember.FindAsync(user, db);
         if (currentMember is null)
         {
@@ -38,7 +72,7 @@ public static class ChoreEndpoints
         {
             Id = Guid.NewGuid(),
             HouseholdId = currentMember.HouseholdId,
-            Title = request.Title,
+            Title = title,
             AssignedFamilyMemberId = request.AssignedFamilyMemberId,
             Recurrence = ChoreRecurrence.OneOff,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -73,3 +107,12 @@ public record ChoreResponse(
     Guid AssignedFamilyMemberId,
     DateOnly ScheduledDate,
     string Recurrence);
+
+public record ChoreListItemResponse(
+    Guid ChoreId,
+    Guid ChoreOccurrenceId,
+    string Title,
+    Guid AssignedFamilyMemberId,
+    string AssignedDisplayName,
+    DateOnly ScheduledDate,
+    DateTimeOffset? CompletedAt);

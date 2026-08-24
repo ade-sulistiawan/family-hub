@@ -1,0 +1,167 @@
+@page "/chores"
+@using FamilyHub.Services
+@inject ChoreClient ChoreClient
+@inject HouseholdClient HouseholdClient
+@inject NavigationManager Navigation
+
+<PageTitle>Chores | Family Hub</PageTitle>
+
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Household</p>
+        <h1>Chores</h1>
+    </div>
+    <span class="date-marker">@DateTime.Today.ToString("dddd, MMMM d")</span>
+</header>
+
+@if (_isLoading)
+{
+    <div class="loading-state" role="status">Loading chores...</div>
+}
+else if (_loadError is not null)
+{
+    <div class="notice notice-error" role="alert">
+        <span>@_loadError</span>
+        <button type="button" class="text-button" @onclick="LoadAsync">Try again</button>
+    </div>
+}
+else if (_household is not null)
+{
+    <section class="chore-composer" aria-labelledby="add-chore-heading">
+        <div class="composer-heading">
+            <h2 id="add-chore-heading">Add a chore</h2>
+            <span>Assigned to @_household.DisplayName</span>
+        </div>
+
+        <form class="composer-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+            <label>
+                <span>Chore</span>
+                <input required maxlength="120" placeholder="e.g. Take bins out" @bind="_title" />
+            </label>
+            <label>
+                <span>Due date</span>
+                <input type="date" required @bind="_scheduledDate" />
+            </label>
+            <button type="submit" class="primary-action" disabled="@_isSaving">
+                @(_isSaving ? "Adding..." : "Add chore")
+            </button>
+        </form>
+
+        @if (_saveError is not null)
+        {
+            <p class="form-error" role="alert">@_saveError</p>
+        }
+    </section>
+
+    <section class="chore-list" aria-labelledby="upcoming-heading">
+        <div class="section-heading">
+            <h2 id="upcoming-heading">Upcoming</h2>
+            <span>@_chores.Count @(_chores.Count == 1 ? "chore" : "chores")</span>
+        </div>
+
+        @if (_chores.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>No chores yet</strong>
+                <span>Add the first one above.</span>
+            </div>
+        }
+        else
+        {
+            <div class="chore-items">
+                @foreach (var chore in _chores)
+                {
+                    <article class="chore-item">
+                        <div class="date-tile">
+                            <span>@chore.ScheduledDate.ToString("MMM")</span>
+                            <strong>@chore.ScheduledDate.Day</strong>
+                        </div>
+                        <div class="chore-details">
+                            <h3>@chore.Title</h3>
+                            <span>@chore.AssignedDisplayName</span>
+                        </div>
+                        <span class="status">One-off</span>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private HouseholdInfo? _household;
+    private IReadOnlyList<ChoreListItem> _chores = [];
+    private string _title = string.Empty;
+    private DateOnly _scheduledDate = DateOnly.FromDateTime(DateTime.Today);
+    private string? _loadError;
+    private string? _saveError;
+    private bool _isLoading = true;
+    private bool _isSaving;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            _household = await HouseholdClient.GetMineAsync();
+            if (_household is null)
+            {
+                _loadError = "Complete Household setup before adding chores.";
+                return;
+            }
+
+            _chores = await ChoreClient.GetAllAsync();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/chores", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Chores could not be loaded.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_household is null || string.IsNullOrWhiteSpace(_title))
+        {
+            return;
+        }
+
+        _isSaving = true;
+        _saveError = null;
+
+        try
+        {
+            await ChoreClient.CreateAsync(
+                _title.Trim(),
+                _household.FamilyMemberId,
+                _scheduledDate);
+
+            _title = string.Empty;
+            _scheduledDate = DateOnly.FromDateTime(DateTime.Today);
+            _chores = await ChoreClient.GetAllAsync();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/chores", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _saveError = "The chore could not be added.";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}
