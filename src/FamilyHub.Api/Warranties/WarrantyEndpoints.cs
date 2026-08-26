@@ -19,6 +19,7 @@ public static class WarrantyEndpoints
         group.MapGet("/", GetAll);
         group.MapPost("/", Create);
         group.MapPost("/with-document", CreateWithDocument).DisableAntiforgery();
+        group.MapGet("/{itemId:guid}/document/thumbnail", GetDocumentThumbnail);
         return group;
     }
 
@@ -219,6 +220,68 @@ public static class WarrantyEndpoints
             warranty.PurchasedOn,
             warranty.WarrantyExpiresOn,
             warranty.DocumentExternalId));
+    }
+
+    private static async Task<IResult> GetDocumentThumbnail(
+        Guid itemId,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        IDataProtectionProvider dataProtectionProvider,
+        IPaperlessDocumentClient paperlessClient,
+        CancellationToken cancellationToken)
+    {
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var documentExternalId = await (
+            from item in db.Items.AsNoTracking()
+            join warranty in db.WarrantyFacets on item.Id equals warranty.ItemId
+            where item.Id == itemId && item.HouseholdId == currentMember.HouseholdId
+            select warranty.DocumentExternalId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (documentExternalId is null)
+        {
+            return Results.NotFound();
+        }
+
+        var settings = await db.PaperlessSettings
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.HouseholdId == currentMember.HouseholdId,
+                cancellationToken);
+        if (settings is null)
+        {
+            return Results.Conflict("Configure Paperless-ngx in Settings before viewing a document.");
+        }
+
+        string apiToken;
+        try
+        {
+            apiToken = PaperlessSettingsEndpoints.UnprotectApiToken(settings, dataProtectionProvider);
+        }
+        catch (CryptographicException)
+        {
+            return Results.Conflict("Save the Paperless-ngx API token again in Settings.");
+        }
+
+        try
+        {
+            var thumbnail = await paperlessClient.GetThumbnailAsync(
+                new PaperlessConnection(new Uri(settings.BaseUrl), apiToken),
+                documentExternalId,
+                cancellationToken);
+            return Results.Stream(thumbnail.Content, thumbnail.ContentType);
+        }
+        catch (PaperlessUploadException exception)
+        {
+            return Results.Problem(
+                detail: exception.Message,
+                statusCode: StatusCodes.Status502BadGateway,
+                title: "Paperless-ngx thumbnail request failed");
+        }
     }
 
     private static bool TryParseOptionalDate(string? value, out DateOnly? date)

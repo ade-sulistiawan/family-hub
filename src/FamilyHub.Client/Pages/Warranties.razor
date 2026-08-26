@@ -6,61 +6,101 @@
 
 <PageTitle>Warranties | Family Hub</PageTitle>
 
-<div class="tracker-page">
-    <header class="tracker-header">
-        <div><p class="tracker-eyebrow">Warranty &amp; Receipt Archiver</p><h1>Warranties</h1></div>
-        <span>References stay linked to Paperless-ngx</span>
-    </header>
+<AppBar Title="Warranties">
+    <Trail>
+        <button type="button" class="icon-btn" aria-label="Add warranty" @onclick="() => _sheetOpen = true">
+            <Icon Name="plus" />
+        </button>
+    </Trail>
+</AppBar>
 
+<div class="page">
     @if (_isLoading)
     {
-        <div class="tracker-state" role="status">Loading warranties...</div>
+        <div class="state" role="status">Loading warranties</div>
     }
     else if (_loadError is not null)
     {
-        <div class="tracker-notice tracker-error" role="alert"><span>@_loadError</span><button type="button" class="tracker-text-action" @onclick="LoadAsync">Try again</button></div>
+        <div class="notice" role="alert">
+            <span>@_loadError</span>
+            <button type="button" class="btn-text" @onclick="LoadAsync">Retry</button>
+        </div>
     }
     else
     {
-        <section class="tracker-editor" aria-labelledby="add-warranty-heading">
-            <div class="tracker-section-heading"><h2 id="add-warranty-heading">Add warranty details</h2><span>Images are stored in Paperless-ngx</span></div>
-            <form class="tracker-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
-                <label class="tracker-field-wide"><span>Item name</span><input required maxlength="120" placeholder="e.g. Washing machine" @bind="_name" /></label>
-                <label><span>Purchased</span><input type="date" @bind="_purchasedOn" /></label>
-                <label><span>Warranty ends</span><input type="date" @bind="_warrantyExpiresOn" /></label>
-                <label class="tracker-field-wide"><span>Warranty or receipt image</span><InputFile @key="_fileInputKey" OnChange="SelectDocument" accept="image/*" required /></label>
-                <button type="submit" class="tracker-primary" disabled="@(_isSaving || _document is null)">@(_isSaving ? "Uploading..." : "Add warranty")</button>
-            </form>
-            @if (_saveError is not null) { <p class="tracker-form-error" role="alert">@_saveError</p> }
-        </section>
-
-        <section class="tracker-list" aria-labelledby="warranty-list-heading">
-            <div class="tracker-section-heading"><h2 id="warranty-list-heading">Warranty register</h2><span>@_items.Count @(_items.Count == 1 ? "item" : "items")</span></div>
+        <div class="section-head">
+            <h2>Register</h2>
+            <span>@_items.Count</span>
+        </div>
+        <div class="card">
             @if (_items.Count == 0)
             {
-                <div class="tracker-empty"><strong>No warranties</strong><span>Add purchase details above.</span></div>
+                <div class="empty">
+                    <strong>No warranties yet</strong>
+                    <span>Tap + to file a receipt into Paperless-ngx.</span>
+                </div>
             }
             else
             {
-                <div class="tracker-rows">
-                    @foreach (var item in _items)
-                    {
-                        <article class="tracker-row tracker-row-without-date">
-                            <div class="tracker-row-main">
-                                <h3>@item.Name</h3>
-                                <span>@GetPurchaseText(item)</span>
-                            </div>
-                            <div class="tracker-row-meta">
-                                <strong>@GetWarrantyText(item)</strong>
-                                <span>@(item.DocumentExternalId is null ? "No Document Reference" : $"Document {item.DocumentExternalId}")</span>
-                            </div>
-                        </article>
-                    }
-                </div>
+                @foreach (var item in _items)
+                {
+                    <div class="row">
+                        <span class="avatar">
+                            @if (item.DocumentExternalId is not null)
+                            {
+                                <img src="@GetThumbnailUrl(item)" alt="" loading="lazy" />
+                            }
+                            else
+                            {
+                                <Icon Name="warranty" />
+                            }
+                        </span>
+                        <div class="row-main">
+                            <div class="row-title">@item.Name</div>
+                            <div class="row-sub">@GetPurchaseText(item)</div>
+                        </div>
+                        <div class="row-trail row-trail-stack">
+                            <span class="row-value">@GetWarrantyText(item)</span>
+                            <span class="chip">
+                                @(item.DocumentExternalId is null ? "No document" : "Document")
+                            </span>
+                        </div>
+                    </div>
+                }
             }
-        </section>
+        </div>
     }
 </div>
+
+<Sheet @bind-Open="_sheetOpen" Title="New warranty">
+    <form class="fields" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+        <label class="field">
+            <span>Item</span>
+            <input required maxlength="120" placeholder="e.g. Washing machine" @bind="_name" />
+        </label>
+        <div class="field-pair">
+            <label class="field">
+                <span>Purchased</span>
+                <input type="date" @bind="_purchasedOn" />
+            </label>
+            <label class="field">
+                <span>Covered until</span>
+                <input type="date" @bind="_warrantyExpiresOn" />
+            </label>
+        </div>
+        <label class="field">
+            <span>Receipt or warranty photo</span>
+            <InputFile @key="_fileInputKey" OnChange="SelectDocument" accept="image/*" capture="environment" required />
+        </label>
+        <button type="submit" class="btn btn-primary btn-block" disabled="@(_isSaving || _document is null)">
+            @(_isSaving ? "Uploading" : "Add warranty")
+        </button>
+    </form>
+    @if (_saveError is not null)
+    {
+        <p class="form-error" role="alert">@_saveError</p>
+    }
+</Sheet>
 
 @code {
     private IReadOnlyList<WarrantyItem> _items = [];
@@ -73,6 +113,7 @@
     private string? _saveError;
     private bool _isLoading = true;
     private bool _isSaving;
+    private bool _sheetOpen;
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -112,6 +153,7 @@
             _document = null;
             _fileInputKey++;
             _items = await WarrantyClient.GetAllAsync();
+            _sheetOpen = false;
         }
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
@@ -135,8 +177,11 @@
     }
 
     private static string GetPurchaseText(WarrantyItem item) =>
-        item.PurchasedOn is null ? "Purchase date not recorded" : $"Purchased {item.PurchasedOn:MMM d, yyyy}";
+        item.PurchasedOn is null ? "Purchase date not recorded" : $"Purchased {item.PurchasedOn:d MMM yyyy}";
 
     private static string GetWarrantyText(WarrantyItem item) =>
-        item.WarrantyExpiresOn is null ? "No warranty end date" : $"Covered until {item.WarrantyExpiresOn:MMM d, yyyy}";
+        item.WarrantyExpiresOn is null ? "No end date" : $"To {item.WarrantyExpiresOn:MMM yyyy}";
+
+    private static string GetThumbnailUrl(WarrantyItem item) =>
+        $"/api/warranty-items/{item.ItemId}/document/thumbnail";
 }

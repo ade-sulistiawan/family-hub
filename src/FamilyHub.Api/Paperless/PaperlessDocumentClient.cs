@@ -63,6 +63,39 @@ public class PaperlessDocumentClient(HttpClient httpClient) : IPaperlessDocument
         }
     }
 
+    public async Task<PaperlessThumbnail> GetThumbnailAsync(
+        PaperlessConnection connection,
+        string documentExternalId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var request = CreateRequest(
+                connection,
+                HttpMethod.Get,
+                $"api/documents/{Uri.EscapeDataString(documentExternalId)}/thumb/");
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new PaperlessUploadException("Paperless-ngx could not return the document thumbnail.");
+            }
+
+            var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
+            var buffer = new MemoryStream();
+            await response.Content.CopyToAsync(buffer, cancellationToken);
+            buffer.Position = 0;
+            return new PaperlessThumbnail(buffer, contentType);
+        }
+        catch (PaperlessUploadException)
+        {
+            throw;
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new PaperlessUploadException("Paperless-ngx could not be reached.", exception);
+        }
+    }
+
     private async Task<string> StartUploadAsync(
         PaperlessConnection connection,
         Stream content,
