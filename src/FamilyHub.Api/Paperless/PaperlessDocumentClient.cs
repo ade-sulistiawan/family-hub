@@ -77,9 +77,11 @@ public class PaperlessDocumentClient(HttpClient httpClient) : IPaperlessDocument
         PaperlessConnection connection,
         string documentExternalId,
         CancellationToken cancellationToken) =>
+        // Paperless-ngx archives documents as PDF by default, so the "preview" action can return a
+        // PDF for an uploaded image. Request the original upload instead, which stays the raw image.
         GetDocumentContentAsync(
             connection,
-            $"api/documents/{Uri.EscapeDataString(documentExternalId)}/preview/",
+            $"api/documents/{Uri.EscapeDataString(documentExternalId)}/download/?original=true",
             "Paperless-ngx could not return the document preview.",
             cancellationToken);
 

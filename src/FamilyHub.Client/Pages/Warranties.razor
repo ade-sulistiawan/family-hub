@@ -47,7 +47,8 @@
                     <div class="row">
                         @if (item.DocumentExternalId is not null)
                         {
-                            <button type="button" class="avatar avatar-button" aria-label="View @item.Name document" @onclick="() => OpenPreview(item)">
+                            <button type="button" class="avatar avatar-button" aria-label="View @item.Name document"
+                                    @onclick="() => OpenPreview(item)">
                                 <img src="@GetThumbnailUrl(item)" alt="" loading="lazy" />
                             </button>
                         }

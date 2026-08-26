@@ -153,13 +153,13 @@ public class PaperlessDocumentClientTests
     }
 
     [Fact]
-    public async Task GetPreview_requests_the_documents_full_size_preview_and_returns_its_bytes_and_content_type()
+    public async Task GetPreview_requests_the_documents_original_file_and_returns_its_bytes_and_content_type()
     {
         var requests = new Queue<Func<HttpRequestMessage, HttpResponseMessage>>();
         requests.Enqueue(request =>
         {
             Assert.Equal(HttpMethod.Get, request.Method);
-            Assert.Equal("https://paperless.example.test/api/documents/4821/preview/", request.RequestUri?.AbsoluteUri);
+            Assert.Equal("https://paperless.example.test/api/documents/4821/download/?original=true", request.RequestUri?.AbsoluteUri);
             Assert.Equal(new AuthenticationHeaderValue("Token", "secret-token"), request.Headers.Authorization);
 
             var response = new HttpResponseMessage(HttpStatusCode.OK)
