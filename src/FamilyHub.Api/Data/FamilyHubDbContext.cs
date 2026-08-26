@@ -25,6 +25,7 @@ public class FamilyHubDbContext(DbContextOptions<FamilyHubDbContext> options) : 
     public DbSet<DoseLog> DoseLogs => Set<DoseLog>();
     public DbSet<BrowserPushSubscription> BrowserPushSubscriptions => Set<BrowserPushSubscription>();
     public DbSet<MedicationReminderDelivery> MedicationReminderDeliveries => Set<MedicationReminderDelivery>();
+    public DbSet<LowStockNotificationDelivery> LowStockNotificationDeliveries => Set<LowStockNotificationDelivery>();
     public DbSet<PaperlessSettings> PaperlessSettings => Set<PaperlessSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -73,6 +74,7 @@ public class FamilyHubDbContext(DbContextOptions<FamilyHubDbContext> options) : 
         {
             entity.HasKey(stock => stock.ItemId);
             entity.HasOne<Item>().WithOne().HasForeignKey<StockFacet>(stock => stock.ItemId);
+            entity.Property(stock => stock.Type).HasConversion<string>();
         });
 
         modelBuilder.Entity<Medication>(entity =>
@@ -104,6 +106,14 @@ public class FamilyHubDbContext(DbContextOptions<FamilyHubDbContext> options) : 
                 delivery.ScheduledOn,
             }).IsUnique();
             entity.HasOne<Medication>().WithMany().HasForeignKey(delivery => delivery.MedicationId);
+            entity.HasOne<BrowserPushSubscription>().WithMany()
+                .HasForeignKey(delivery => delivery.BrowserPushSubscriptionId);
+        });
+
+        modelBuilder.Entity<LowStockNotificationDelivery>(entity =>
+        {
+            entity.HasIndex(delivery => new { delivery.ItemId, delivery.BrowserPushSubscriptionId }).IsUnique();
+            entity.HasOne<Item>().WithMany().HasForeignKey(delivery => delivery.ItemId);
             entity.HasOne<BrowserPushSubscription>().WithMany()
                 .HasForeignKey(delivery => delivery.BrowserPushSubscriptionId);
         });

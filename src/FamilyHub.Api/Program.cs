@@ -24,9 +24,11 @@ builder.Services.AddHttpClient<IPaperlessDocumentClient, PaperlessDocumentClient
 builder.Services.AddDbContext<FamilyHubDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("FamilyHub")));
 builder.Services.AddScoped<MedicationReminderDispatcher>();
+builder.Services.AddScoped<LowStockReminderDispatcher>();
 builder.Services.AddSingleton<IPushNotificationSender, WebPushNotificationSender>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHostedService<MedicationReminderWorker>();
+builder.Services.AddHostedService<LowStockReminderWorker>();
 
 var authenticationBuilder = builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

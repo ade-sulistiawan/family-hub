@@ -39,7 +39,8 @@ public static class FirstAidEndpoints
                 stock.Quantity,
                 stock.LowStockThreshold,
                 expiry.ExpiresOn,
-                expiry.LeadTimeDays))
+                expiry.LeadTimeDays,
+                stock.Type.ToString()))
             .ToListAsync();
 
         return Results.Ok(items);
@@ -66,6 +67,11 @@ public static class FirstAidEndpoints
             return Results.BadRequest("Lead Time must be between 0 and 3650 days.");
         }
 
+        if (!Enum.TryParse<FirstAidItemType>(request.Type, true, out var type))
+        {
+            return Results.BadRequest("Type must be one of: Other, Tablet, Syrup, Ointment, Spray, Bandage, Equipment.");
+        }
+
         var currentMember = await CurrentFamilyMember.FindAsync(user, db);
         if (currentMember is null)
         {
@@ -84,6 +90,7 @@ public static class FirstAidEndpoints
             ItemId = item.Id,
             Quantity = request.Quantity,
             LowStockThreshold = request.LowStockThreshold,
+            Type = type,
         };
         var expiry = new ExpiryFacet
         {
@@ -103,7 +110,8 @@ public static class FirstAidEndpoints
             stock.Quantity,
             stock.LowStockThreshold,
             expiry.ExpiresOn,
-            expiry.LeadTimeDays));
+            expiry.LeadTimeDays,
+            stock.Type.ToString()));
     }
 
     private static async Task<IResult> Update(
@@ -129,6 +137,11 @@ public static class FirstAidEndpoints
             return Results.BadRequest("Lead Time must be between 0 and 3650 days.");
         }
 
+        if (!Enum.TryParse<FirstAidItemType>(request.Type, true, out var type))
+        {
+            return Results.BadRequest("Type must be one of: Other, Tablet, Syrup, Ointment, Spray, Bandage, Equipment.");
+        }
+
         var currentMember = await CurrentFamilyMember.FindAsync(user, db);
         if (currentMember is null)
         {
@@ -148,6 +161,7 @@ public static class FirstAidEndpoints
         item.Name = name;
         stock.Quantity = request.Quantity;
         stock.LowStockThreshold = request.LowStockThreshold;
+        stock.Type = type;
         expiry.ExpiresOn = request.ExpiresOn;
         expiry.LeadTimeDays = request.LeadTimeDays;
         await db.SaveChangesAsync(cancellationToken);
@@ -158,7 +172,8 @@ public static class FirstAidEndpoints
             stock.Quantity,
             stock.LowStockThreshold,
             expiry.ExpiresOn,
-            expiry.LeadTimeDays));
+            expiry.LeadTimeDays,
+            stock.Type.ToString()));
     }
 
     private static async Task<IResult> Delete(
@@ -182,14 +197,16 @@ public record CreateFirstAidItemRequest(
     int Quantity,
     int LowStockThreshold,
     DateOnly ExpiresOn,
-    int LeadTimeDays);
+    int LeadTimeDays,
+    string Type);
 
 public record UpdateFirstAidItemRequest(
     string Name,
     int Quantity,
     int LowStockThreshold,
     DateOnly ExpiresOn,
-    int LeadTimeDays);
+    int LeadTimeDays,
+    string Type);
 
 public record FirstAidItemResponse(
     Guid ItemId,
@@ -197,4 +214,5 @@ public record FirstAidItemResponse(
     int Quantity,
     int LowStockThreshold,
     DateOnly ExpiresOn,
-    int LeadTimeDays);
+    int LeadTimeDays,
+    string Type);

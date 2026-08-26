@@ -12,7 +12,8 @@ public class FirstAidClient(HttpClient http)
         int quantity,
         int lowStockThreshold,
         DateOnly expiresOn,
-        int leadTimeDays)
+        int leadTimeDays,
+        string type)
     {
         var response = await http.PostAsJsonAsync("/api/first-aid-items", new
         {
@@ -21,6 +22,7 @@ public class FirstAidClient(HttpClient http)
             lowStockThreshold,
             expiresOn,
             leadTimeDays,
+            type,
         });
         response.EnsureSuccessStatusCode();
     }
@@ -31,7 +33,8 @@ public class FirstAidClient(HttpClient http)
         int quantity,
         int lowStockThreshold,
         DateOnly expiresOn,
-        int leadTimeDays)
+        int leadTimeDays,
+        string type)
     {
         var response = await http.PutAsJsonAsync($"/api/first-aid-items/{itemId}", new
         {
@@ -40,6 +43,7 @@ public class FirstAidClient(HttpClient http)
             lowStockThreshold,
             expiresOn,
             leadTimeDays,
+            type,
         });
         response.EnsureSuccessStatusCode();
     }
@@ -57,4 +61,5 @@ public record FirstAidItem(
     int Quantity,
     int LowStockThreshold,
     DateOnly ExpiresOn,
-    int LeadTimeDays);
+    int LeadTimeDays,
+    string Type);

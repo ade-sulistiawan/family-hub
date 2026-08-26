@@ -52,7 +52,8 @@
                 {
                     <div class="row">
                         <button type="button" class="row-link row-hit" @onclick="() => OpenEdit(chore)">
-                            <div class="datechip @(chore.ScheduledDate <= DateOnly.FromDateTime(DateTime.Today) ? "is-alert" : null)">
+                            <div
+                                class="datechip @(chore.ScheduledDate <= DateOnly.FromDateTime(DateTime.Today) ? "is-alert" : null)">
                                 <span>@chore.ScheduledDate.ToString("MMM")</span>
                                 <strong>@chore.ScheduledDate.Day</strong>
                             </div>
@@ -142,12 +143,8 @@
     }
 </Sheet>
 
-<ConfirmDialog @bind-Open="_confirmDeleteOpen"
-               Title="Delete chore"
-               Message="@_deleteMessage"
-               OnConfirm="DeleteAsync"
-               Error="@_deleteError"
-               IsBusy="_isDeleting" />
+<ConfirmDialog @bind-Open="_confirmDeleteOpen" Title="Delete chore" Message="@_deleteMessage" OnConfirm="DeleteAsync"
+               Error="@_deleteError" IsBusy="_isDeleting" />
 
 @code {
     private HouseholdInfo? _household;

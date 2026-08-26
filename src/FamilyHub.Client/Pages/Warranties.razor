@@ -132,7 +132,8 @@
         </div>
         <label class="field">
             <span>Replace receipt or warranty photo</span>
-            <InputFile @key="_editFileInputKey" OnChange="SelectReplacementDocument" accept="image/*" capture="environment" />
+            <InputFile @key="_editFileInputKey" OnChange="SelectReplacementDocument" accept="image/*"
+                       capture="environment" />
         </label>
         <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
             @(_isSaving ? "Saving" : "Save changes")
@@ -145,12 +146,8 @@
     }
 </Sheet>
 
-<ConfirmDialog @bind-Open="_confirmDeleteOpen"
-               Title="Delete warranty"
-               Message="@_deleteMessage"
-               OnConfirm="DeleteAsync"
-               Error="@_deleteError"
-               IsBusy="_isDeleting" />
+<ConfirmDialog @bind-Open="_confirmDeleteOpen" Title="Delete warranty" Message="@_deleteMessage" OnConfirm="DeleteAsync"
+               Error="@_deleteError" IsBusy="_isDeleting" />
 
 @code {
     private IReadOnlyList<WarrantyItem> _items = [];

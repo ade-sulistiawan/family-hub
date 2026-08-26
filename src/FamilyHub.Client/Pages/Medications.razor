@@ -221,51 +221,45 @@
         <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
             @(_isSaving ? "Saving" : "Save changes")
         </button>
-        <button type="button" class="btn-text" @onclick="() => _confirmDeleteMedicationOpen = true">Delete medication</button>
-    </form>
-    @if (_editMedicationError is not null)
-    {
-        <p class="form-error" role="alert">@_editMedicationError</p>
-    }
-</Sheet>
+        <button type="button" class="btn-text" @onclick="() => _confirmDeleteMedicationOpen = true">Delete
+            medication</button>
+        </form>
+        @if (_editMedicationError is not null)
+        {
+            <p class="form-error" role="alert">@_editMedicationError</p>
+        }
+    </Sheet>
 
-<ConfirmDialog @bind-Open="_confirmDeleteMedicationOpen"
-               Title="Delete medication"
-               Message="@_deleteMedicationMessage"
-               OnConfirm="DeleteMedicationAsync"
-               Error="@_deleteMedicationError"
-               IsBusy="_isDeletingMedication" />
+    <ConfirmDialog @bind-Open="_confirmDeleteMedicationOpen" Title="Delete medication" Message="@_deleteMedicationMessage"
+                   OnConfirm="DeleteMedicationAsync" Error="@_deleteMedicationError" IsBusy="_isDeletingMedication" />
 
-<Sheet @bind-Open="_editDoseLogSheetOpen" Title="Edit Dose Log">
-    <form class="fields" @onsubmit="UpdateDoseLogAsync" @onsubmit:preventDefault>
-        <div class="field">
-            <span>Status</span>
-            <div class="segmented">
-                <button type="button" class="@(_editDoseLogStatus == "Taken" ? "is-on" : null)"
-                        @onclick='() => _editDoseLogStatus = "Taken"'>Taken</button>
-                <button type="button" class="@(_editDoseLogStatus == "Skipped" ? "is-on" : null)"
-                        @onclick='() => _editDoseLogStatus = "Skipped"'>Skipped</button>
-                <button type="button" class="@(_editDoseLogStatus == "Missed" ? "is-on" : null)"
-                        @onclick='() => _editDoseLogStatus = "Missed"'>Missed</button>
+    <Sheet @bind-Open="_editDoseLogSheetOpen" Title="Edit Dose Log">
+        <form class="fields" @onsubmit="UpdateDoseLogAsync" @onsubmit:preventDefault>
+            <div class="field">
+                <span>Status</span>
+                <div class="segmented">
+                    <button type="button" class="@(_editDoseLogStatus == "Taken" ? "is-on" : null)"
+                            @onclick='() => _editDoseLogStatus = "Taken"'>Taken</button>
+                    <button type="button" class="@(_editDoseLogStatus == "Skipped" ? "is-on" : null)"
+                            @onclick='() => _editDoseLogStatus = "Skipped"'>Skipped</button>
+                    <button type="button" class="@(_editDoseLogStatus == "Missed" ? "is-on" : null)"
+                            @onclick='() => _editDoseLogStatus = "Missed"'>Missed</button>
+                </div>
             </div>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
-            @(_isSaving ? "Saving" : "Save changes")
-        </button>
-        <button type="button" class="btn-text" @onclick="() => _confirmDeleteDoseLogOpen = true">Delete entry</button>
-    </form>
-    @if (_editDoseLogError is not null)
-    {
-        <p class="form-error" role="alert">@_editDoseLogError</p>
-    }
-</Sheet>
+            <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
+                @(_isSaving ? "Saving" : "Save changes")
+            </button>
+            <button type="button" class="btn-text" @onclick="() => _confirmDeleteDoseLogOpen = true">Delete entry</button>
+        </form>
+        @if (_editDoseLogError is not null)
+        {
+            <p class="form-error" role="alert">@_editDoseLogError</p>
+        }
+    </Sheet>
 
-<ConfirmDialog @bind-Open="_confirmDeleteDoseLogOpen"
-               Title="Delete Dose Log entry"
+<ConfirmDialog @bind-Open="_confirmDeleteDoseLogOpen" Title="Delete Dose Log entry"
                Message="Only an exact duplicate entry can be deleted; correct it above instead if it isn't."
-               OnConfirm="DeleteDoseLogAsync"
-               Error="@_deleteDoseLogError"
-               IsBusy="_isDeletingDoseLog" />
+               OnConfirm="DeleteDoseLogAsync" Error="@_deleteDoseLogError" IsBusy="_isDeletingDoseLog" />
 
 @code {
     private HouseholdInfo? _household;

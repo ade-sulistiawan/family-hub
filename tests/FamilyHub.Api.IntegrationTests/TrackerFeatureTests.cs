@@ -158,6 +158,7 @@ public class TrackerFeatureTests : IClassFixture<FamilyHubApiFactory>
             lowStockThreshold = 5,
             expiresOn = new DateOnly(2028, 6, 30),
             leadTimeDays = 30,
+            type = "Bandage",
         });
 
         Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
@@ -165,6 +166,7 @@ public class TrackerFeatureTests : IClassFixture<FamilyHubApiFactory>
         var stockItem = Assert.Single(stockItems!);
         Assert.Equal(12, stockItem.Quantity);
         Assert.Equal(5, stockItem.LowStockThreshold);
+        Assert.Equal("Bandage", stockItem.Type);
 
         var expiryItems = await client.GetFromJsonAsync<List<ExpiryItemResponse>>("/api/expiry-items");
         var expiryItem = Assert.Single(expiryItems!);
@@ -184,6 +186,7 @@ public class TrackerFeatureTests : IClassFixture<FamilyHubApiFactory>
             lowStockThreshold = 5,
             expiresOn = new DateOnly(2028, 6, 30),
             leadTimeDays = 30,
+            type = "Bandage",
         })).Content.ReadFromJsonAsync<FirstAidItemResponse>();
 
         var updateResponse = await client.PutAsJsonAsync($"/api/first-aid-items/{created!.ItemId}", new
@@ -193,6 +196,7 @@ public class TrackerFeatureTests : IClassFixture<FamilyHubApiFactory>
             lowStockThreshold = 5,
             expiresOn = new DateOnly(2028, 12, 31),
             leadTimeDays = 14,
+            type = "Bandage",
         });
 
         Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
@@ -367,7 +371,8 @@ public class TrackerFeatureTests : IClassFixture<FamilyHubApiFactory>
         int Quantity,
         int LowStockThreshold,
         DateOnly ExpiresOn,
-        int LeadTimeDays);
+        int LeadTimeDays,
+        string Type);
 
     private sealed record HouseholdSetupResponse(Guid FamilyMemberId);
 
