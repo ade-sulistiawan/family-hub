@@ -65,6 +65,13 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// No SDK/dotnet-ef in the published container, so apply migrations here on startup.
+using (var migrationScope = app.Services.CreateScope())
+{
+    var db = migrationScope.ServiceProvider.GetRequiredService<FamilyHubDbContext>();
+    await db.Database.MigrateAsync();
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {

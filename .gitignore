@@ -4,6 +4,9 @@ obj/
 *.user
 *.suo
 
+## Docker
+.env
+
 ## VS Code
 .vs/
 
