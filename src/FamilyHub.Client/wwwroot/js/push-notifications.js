@@ -25,13 +25,22 @@ async function subscribe(publicKey, requestPermission) {
     return { status: permission };
   }
 
-  // navigator.serviceWorker.ready never settles if the worker's install fails, so bound the wait.
-  const registration = await Promise.race([
-    navigator.serviceWorker.ready,
+  // Any of the steps below can hang indefinitely (stalled worker install, unresponsive push
+  // service, etc.), which would otherwise leave the caller's UI stuck forever. Bound the whole
+  // flow so it always settles.
+  return await Promise.race([
+    subscribeCore(publicKey),
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Service worker did not become ready in time")), 10000),
+      setTimeout(
+        () => reject(new Error("Push subscription setup timed out")),
+        15000,
+      ),
     ),
   ]);
+}
+
+async function subscribeCore(publicKey) {
+  const registration = await navigator.serviceWorker.ready;
   let subscription = await registration.pushManager.getSubscription();
   if (!subscription) {
     subscription = await registration.pushManager.subscribe({

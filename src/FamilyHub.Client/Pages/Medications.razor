@@ -435,6 +435,10 @@
         {
             _notificationError = "The browser could not create a Push subscription.";
         }
+        catch (Exception)
+        {
+            _notificationError = "Notifications could not be enabled. Try again.";
+        }
         finally { _isEnablingNotifications = false; }
     }
 
