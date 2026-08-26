@@ -6,105 +6,121 @@
 
 <PageTitle>Chores | Family Hub</PageTitle>
 
-<header class="page-header">
-    <div>
-        <p class="eyebrow">Household</p>
-        <h1>Chores</h1>
-    </div>
-    <span class="date-marker">@DateTime.Today.ToString("dddd, MMMM d")</span>
-</header>
+<AppBar Title="Chores">
+    <Trail>
+        <button type="button" class="icon-btn" aria-label="Add chore" disabled="@(_household is null)"
+                @onclick="() => _sheetOpen = true">
+            <Icon Name="plus" />
+        </button>
+    </Trail>
+</AppBar>
 
-@if (_isLoading)
-{
-    <div class="loading-state" role="status">Loading chores...</div>
-}
-else if (_loadError is not null)
-{
-    <div class="notice notice-error" role="alert">
-        <span>@_loadError</span>
-        <button type="button" class="text-button" @onclick="LoadAsync">Try again</button>
-    </div>
-}
-else if (_household is not null)
-{
-    <section class="chore-composer" aria-labelledby="add-chore-heading">
-        <div class="composer-heading">
-            <h2 id="add-chore-heading">Add a chore</h2>
-            <span>Assigned to @_household.DisplayName</span>
+<div class="page">
+    @if (_isLoading)
+    {
+        <div class="state" role="status">Loading chores</div>
+    }
+    else if (_loadError is not null)
+    {
+        <div class="notice" role="alert">
+            <span>@_loadError</span>
+            <button type="button" class="btn-text" @onclick="LoadAsync">Retry</button>
         </div>
-
-        <form class="composer-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
-            <label>
-                <span>Chore</span>
-                <input required maxlength="120" placeholder="e.g. Take bins out" @bind="_title" />
-            </label>
-            <label>
-                <span>Due date</span>
-                <input type="date" required @bind="_scheduledDate" />
-            </label>
-            <button type="submit" class="primary-action" disabled="@_isSaving">
-                @(_isSaving ? "Adding..." : "Add chore")
-            </button>
-        </form>
-
-        @if (_saveError is not null)
-        {
-            <p class="form-error" role="alert">@_saveError</p>
-        }
-    </section>
-
-    <section class="chore-list" aria-labelledby="chore-list-heading">
-        <div class="section-heading">
-            <h2 id="chore-list-heading">Chore list</h2>
-            <span>@_chores.Count @(_chores.Count == 1 ? "chore" : "chores")</span>
-        </div>
-
+    }
+    else if (_household is not null)
+    {
         @if (_actionError is not null)
         {
-            <div class="notice notice-error action-error" role="alert">@_actionError</div>
+            <div class="notice" role="alert">@_actionError</div>
         }
 
-        @if (_chores.Count == 0)
-        {
-            <div class="empty-state">
-                <strong>No chores yet</strong>
-                <span>Add the first one above.</span>
-            </div>
-        }
-        else
-        {
-            <div class="chore-items">
-                @foreach (var chore in _chores)
+        <div class="section-head">
+            <h2>To do</h2>
+            <span>@DateTime.Today.ToString("ddd d MMM")</span>
+        </div>
+        <div class="card">
+            @if (_open.Count == 0)
+            {
+                <div class="empty">
+                    <strong>Nothing to do</strong>
+                    <span>Tap + to add a chore.</span>
+                </div>
+            }
+            else
+            {
+                @foreach (var chore in _open)
                 {
-                    var isCompleted = chore.CompletedAt is not null;
-                    <article class="chore-item @(isCompleted ? "is-complete" : null)">
-                        <div class="date-tile">
+                    <div class="row">
+                        <div class="datechip @(chore.ScheduledDate <= DateOnly.FromDateTime(DateTime.Today) ? "is-alert" : null)">
                             <span>@chore.ScheduledDate.ToString("MMM")</span>
                             <strong>@chore.ScheduledDate.Day</strong>
                         </div>
-                        <div class="chore-details">
-                            <h3>@chore.Title</h3>
-                            <span>@chore.AssignedDisplayName</span>
+                        <div class="row-main">
+                            <div class="row-title">@chore.Title</div>
+                            <div class="row-sub">@chore.AssignedDisplayName</div>
                         </div>
-                        <div class="chore-actions">
-                            <span class="status">One-off</span>
-                            <button type="button"
-                                    class="completion-action"
-                                    disabled="@(isCompleted || _completingOccurrenceId == chore.ChoreOccurrenceId)"
+                        <div class="row-trail">
+                            <button type="button" class="btn btn-sm"
+                                    disabled="@(_completingOccurrenceId == chore.ChoreOccurrenceId)"
                                     @onclick="() => CompleteAsync(chore)">
-                                @(isCompleted ? "Done" : _completingOccurrenceId == chore.ChoreOccurrenceId ? "Saving..." : "Mark done")
+                                @(_completingOccurrenceId == chore.ChoreOccurrenceId ? "Saving" : "Done")
                             </button>
                         </div>
-                    </article>
+                    </div>
+                }
+            }
+        </div>
+
+        @if (_done.Count > 0)
+        {
+            <div class="section-head">
+                <h2>Completed</h2>
+                <span>@_done.Count</span>
+            </div>
+            <div class="card">
+                @foreach (var chore in _done)
+                {
+                    <div class="row is-done">
+                        <div class="datechip">
+                            <span>@chore.ScheduledDate.ToString("MMM")</span>
+                            <strong>@chore.ScheduledDate.Day</strong>
+                        </div>
+                        <div class="row-main">
+                            <div class="row-title">@chore.Title</div>
+                            <div class="row-sub">@chore.AssignedDisplayName</div>
+                        </div>
+                        <div class="row-trail">
+                            <span class="chip chip-ok">Done</span>
+                        </div>
+                    </div>
                 }
             </div>
         }
-    </section>
-}
+    }
+</div>
+
+<Sheet @bind-Open="_sheetOpen" Title="New chore">
+    <form class="fields" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+        <label class="field">
+            <span>Chore</span>
+            <input required maxlength="120" placeholder="e.g. Take the bins out" @bind="_title" />
+        </label>
+        <label class="field">
+            <span>Due date</span>
+            <input type="date" required @bind="_scheduledDate" />
+        </label>
+        <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
+            @(_isSaving ? "Adding" : "Add chore")
+        </button>
+    </form>
+    @if (_saveError is not null)
+    {
+        <p class="form-error" role="alert">@_saveError</p>
+    }
+</Sheet>
 
 @code {
     private HouseholdInfo? _household;
-    private IReadOnlyList<ChoreListItem> _chores = [];
     private string _title = string.Empty;
     private DateOnly _scheduledDate = DateOnly.FromDateTime(DateTime.Today);
     private string? _loadError;
@@ -112,7 +128,11 @@ else if (_household is not null)
     private string? _actionError;
     private bool _isLoading = true;
     private bool _isSaving;
+    private bool _sheetOpen;
     private Guid? _completingOccurrenceId;
+
+    private IReadOnlyList<ChoreListItem> _open = [];
+    private IReadOnlyList<ChoreListItem> _done = [];
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -130,7 +150,7 @@ else if (_household is not null)
                 return;
             }
 
-            _chores = await ChoreClient.GetAllAsync();
+            SetChores(await ChoreClient.GetAllAsync());
         }
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
@@ -165,7 +185,8 @@ else if (_household is not null)
 
             _title = string.Empty;
             _scheduledDate = DateOnly.FromDateTime(DateTime.Today);
-            _chores = await ChoreClient.GetAllAsync();
+            SetChores(await ChoreClient.GetAllAsync());
+            _sheetOpen = false;
         }
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
@@ -189,7 +210,7 @@ else if (_household is not null)
         try
         {
             await ChoreClient.CompleteAsync(chore.ChoreOccurrenceId);
-            _chores = await ChoreClient.GetAllAsync();
+            SetChores(await ChoreClient.GetAllAsync());
         }
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
@@ -203,5 +224,11 @@ else if (_household is not null)
         {
             _completingOccurrenceId = null;
         }
+    }
+
+    private void SetChores(IReadOnlyList<ChoreListItem> chores)
+    {
+        _open = [.. chores.Where(chore => chore.CompletedAt is null)];
+        _done = [.. chores.Where(chore => chore.CompletedAt is not null)];
     }
 }

@@ -1,0 +1,13 @@
+@* Sticky title bar: centred title on phones, left-aligned with the rail on desktop. *@
+<header class="appbar">
+    <h1 class="appbar-title">@Title</h1>
+    <div class="appbar-trail">@Trail</div>
+</header>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? Trail { get; set; }
+}

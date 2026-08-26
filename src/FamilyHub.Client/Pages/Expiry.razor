@@ -6,87 +6,88 @@
 
 <PageTitle>Expiry Tracker | Family Hub</PageTitle>
 
-<div class="tracker-page">
-    <header class="tracker-header">
-        <div>
-            <p class="tracker-eyebrow">Expiry Tracker</p>
-            <h1>Expiring items</h1>
-        </div>
-        <span>Plan before things go to waste</span>
-    </header>
+<AppBar Title="Expiry">
+    <Trail>
+        <button type="button" class="icon-btn" aria-label="Add item" @onclick="() => _sheetOpen = true">
+            <Icon Name="plus" />
+        </button>
+    </Trail>
+</AppBar>
 
+<div class="page">
     @if (_isLoading)
     {
-        <div class="tracker-state" role="status">Loading expiring items...</div>
+        <div class="state" role="status">Loading items</div>
     }
     else if (_loadError is not null)
     {
-        <div class="tracker-notice tracker-error" role="alert">
+        <div class="notice" role="alert">
             <span>@_loadError</span>
-            <button type="button" class="tracker-text-action" @onclick="LoadAsync">Try again</button>
+            <button type="button" class="btn-text" @onclick="LoadAsync">Retry</button>
         </div>
     }
     else
     {
-        <section class="tracker-editor" aria-labelledby="add-expiry-heading">
-            <div class="tracker-section-heading">
-                <h2 id="add-expiry-heading">Add an expiring item</h2>
-                <span>Lead Time controls the reminder window</span>
-            </div>
-            <form class="tracker-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
-                <label class="tracker-field-wide">
-                    <span>Item name</span>
-                    <input required maxlength="120" placeholder="e.g. Milk" @bind="_name" />
-                </label>
-                <label>
-                    <span>Expiry date</span>
-                    <input type="date" required @bind="_expiresOn" />
-                </label>
-                <label>
-                    <span>Lead Time (days)</span>
-                    <input type="number" min="0" max="3650" required @bind="_leadTimeDays" />
-                </label>
-                <button type="submit" class="tracker-primary" disabled="@_isSaving">
-                    @(_isSaving ? "Adding..." : "Add item")
-                </button>
-            </form>
-            @if (_saveError is not null)
-            {
-                <p class="tracker-form-error" role="alert">@_saveError</p>
-            }
-        </section>
-
-        <section class="tracker-list" aria-labelledby="expiry-list-heading">
-            <div class="tracker-section-heading">
-                <h2 id="expiry-list-heading">Expiry timeline</h2>
-                <span>@_items.Count @(_items.Count == 1 ? "item" : "items")</span>
-            </div>
+        <div class="section-head">
+            <h2>Expiring soonest</h2>
+            <span>@_items.Count</span>
+        </div>
+        <div class="card">
             @if (_items.Count == 0)
             {
-                <div class="tracker-empty"><strong>No expiring items</strong><span>Add the first one above.</span></div>
+                <div class="empty">
+                    <strong>Nothing tracked yet</strong>
+                    <span>Tap + to add an Item with an expiry date.</span>
+                </div>
             }
             else
             {
-                <div class="tracker-rows">
-                    @foreach (var item in _items)
-                    {
-                        <article class="tracker-row">
-                            <div class="tracker-date-tile">
-                                <span>@item.ExpiresOn.ToString("MMM")</span>
-                                <strong>@item.ExpiresOn.Day</strong>
-                            </div>
-                            <div class="tracker-row-main">
-                                <h3>@item.Name</h3>
-                                <span>Reminder @item.LeadTimeDays days before</span>
-                            </div>
-                            <span class="tracker-badge @GetExpiryClass(item)">@GetExpiryLabel(item)</span>
-                        </article>
-                    }
-                </div>
+                @foreach (var item in _items)
+                {
+                    <div class="row">
+                        <div class="datechip @(IsAlert(item) ? "is-alert" : null)">
+                            <span>@item.ExpiresOn.ToString("MMM")</span>
+                            <strong>@item.ExpiresOn.Day</strong>
+                        </div>
+                        <div class="row-main">
+                            <div class="row-title">@item.Name</div>
+                            <div class="row-sub">Reminder @item.LeadTimeDays @(item.LeadTimeDays == 1 ? "day" : "days") before</div>
+                        </div>
+                        <div class="row-trail">
+                            <span class="chip @GetExpiryClass(item)">@GetExpiryLabel(item)</span>
+                        </div>
+                    </div>
+                }
             }
-        </section>
+        </div>
     }
 </div>
+
+<Sheet @bind-Open="_sheetOpen" Title="New expiring item">
+    <form class="fields" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+        <label class="field">
+            <span>Item</span>
+            <input required maxlength="120" placeholder="e.g. Milk" @bind="_name" />
+        </label>
+        <div class="field-pair">
+            <label class="field">
+                <span>Expires on</span>
+                <input type="date" required @bind="_expiresOn" />
+            </label>
+            <label class="field">
+                <span>Lead Time (days)</span>
+                <input type="number" min="0" max="3650" required @bind="_leadTimeDays" />
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
+            @(_isSaving ? "Adding" : "Add item")
+        </button>
+    </form>
+    @if (_saveError is not null)
+    {
+        <p class="form-error" role="alert">@_saveError</p>
+    }
+</Sheet>
 
 @code {
     private IReadOnlyList<ExpiryItem> _items = [];
@@ -97,6 +98,10 @@
     private string? _saveError;
     private bool _isLoading = true;
     private bool _isSaving;
+    private bool _sheetOpen;
+
+    private static bool IsAlert(ExpiryItem item) =>
+        item.ExpiresOn <= DateOnly.FromDateTime(DateTime.Today);
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -137,6 +142,7 @@
             await ExpiryClient.CreateAsync(_name.Trim(), _expiresOn, _leadTimeDays);
             _name = string.Empty;
             _items = await ExpiryClient.GetAllAsync();
+            _sheetOpen = false;
         }
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
@@ -156,7 +162,7 @@
         item.ExpiresOn.DayNumber - DateOnly.FromDateTime(DateTime.Today).DayNumber;
 
     private static string GetExpiryClass(ExpiryItem item) =>
-        DaysUntil(item) < 0 ? "tracker-badge-danger" : DaysUntil(item) <= item.LeadTimeDays ? "tracker-badge-warning" : string.Empty;
+        DaysUntil(item) < 0 ? "chip-danger" : DaysUntil(item) <= item.LeadTimeDays ? "chip-warn" : string.Empty;
 
     private static string GetExpiryLabel(ExpiryItem item) => DaysUntil(item) switch
     {

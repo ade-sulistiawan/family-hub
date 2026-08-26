@@ -1,22 +1,37 @@
 {
-  "name": "FamilyHub",
-  "short_name": "FamilyHub",
+  "name": "Family Hub",
+  "short_name": "Family Hub",
+  "description": "Chores, expiry dates, warranties and medication for one household.",
   "id": "./",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#03173d",
+  "orientation": "portrait",
+  "background_color": "#f2f3f5",
+  "theme_color": "#ffffff",
   "prefer_related_applications": false,
   "icons": [
     {
       "src": "icon-512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any"
     },
     {
       "src": "icon-192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Chores",
+      "url": "./chores"
+    },
+    {
+      "name": "Medications",
+      "url": "./medications"
     }
   ]
 }

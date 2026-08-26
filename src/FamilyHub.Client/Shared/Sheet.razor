@@ -1,0 +1,33 @@
+@* Bottom sheet on phones, centred dialog on wide screens. *@
+@if (Open)
+{
+    <div class="sheet-scrim" @onclick="CloseAsync"></div>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="@Title">
+        <div class="sheet-grip"></div>
+        <div class="sheet-head">
+            <h2>@Title</h2>
+            <button type="button" class="icon-btn" aria-label="Close" @onclick="CloseAsync">
+                <Icon Name="close" />
+            </button>
+        </div>
+        <div class="sheet-body">
+            @ChildContent
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool Open { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OpenChanged { get; set; }
+
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private Task CloseAsync() => OpenChanged.InvokeAsync(false);
+}

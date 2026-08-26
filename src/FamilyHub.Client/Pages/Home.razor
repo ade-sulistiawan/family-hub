@@ -7,46 +7,177 @@
 
 @if (_state == State.Loading)
 {
-    <p>Loading&hellip;</p>
+    <div class="state" role="status">Loading</div>
 }
 else if (_state == State.SignedOut)
 {
-    <h1>Family Hub</h1>
-    <a class="btn btn-primary" href="/login">Sign in with Google</a>
+    <div class="gate">
+        <span class="mark" aria-hidden="true">FH</span>
+        <h1>Family Hub</h1>
+        <p>Chores, expiry dates, warranties and medication for everyone under one roof.</p>
+        <a class="btn btn-primary btn-block" href="/login">Continue with Google</a>
+    </div>
 }
 else if (_state == State.NeedsOnboarding)
 {
-    <h1>Welcome to Family Hub</h1>
+    <div class="gate">
+        <span class="mark" aria-hidden="true">FH</span>
+        <h1>Set up your Household</h1>
+        <p>Start a new Household, or join one with a Join Code.</p>
 
-    <h2>Create a new Household</h2>
-    <input @bind="_createDisplayName" placeholder="Your name" />
-    <button class="btn btn-primary" @onclick="CreateHouseholdAsync">Create Household</button>
+        <div class="segmented" style="margin-top:18px">
+            <button type="button" class="@(_onboardMode == OnboardMode.Create ? "is-on" : null)"
+                    @onclick="() => _onboardMode = OnboardMode.Create">Create</button>
+            <button type="button" class="@(_onboardMode == OnboardMode.Join ? "is-on" : null)"
+                    @onclick="() => _onboardMode = OnboardMode.Join">Join</button>
+        </div>
 
-    <h2>Join an existing Household</h2>
-    <input @bind="_joinCode" placeholder="Join code" />
-    <input @bind="_joinDisplayName" placeholder="Your name" />
-    <button class="btn btn-primary" @onclick="JoinHouseholdAsync">Join Household</button>
+        @if (_onboardMode == OnboardMode.Create)
+        {
+            <form class="fields gate-form" @onsubmit="CreateHouseholdAsync" @onsubmit:preventDefault>
+                <label class="field">
+                    <span>Your name</span>
+                    <input required maxlength="120" placeholder="e.g. Alex" @bind="_createDisplayName" />
+                </label>
+                <button type="submit" class="btn btn-primary btn-block">Create Household</button>
+            </form>
+        }
+        else
+        {
+            <form class="fields gate-form" @onsubmit="JoinHouseholdAsync" @onsubmit:preventDefault>
+                <label class="field">
+                    <span>Join Code</span>
+                    <input required autocapitalize="characters" placeholder="e.g. 7KQ2WD" @bind="_joinCode" />
+                </label>
+                <label class="field">
+                    <span>Your name</span>
+                    <input required maxlength="120" placeholder="e.g. Alex" @bind="_joinDisplayName" />
+                </label>
+                <button type="submit" class="btn btn-primary btn-block">Join Household</button>
+            </form>
+        }
 
-    @if (!string.IsNullOrEmpty(_error))
-    {
-        <p class="text-danger">@_error</p>
-    }
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <p class="form-error" role="alert">@_error</p>
+        }
+    </div>
 }
 else if (_state == State.Ready && _household is not null)
 {
-    <h1>Welcome, @_household.DisplayName</h1>
-    <p>Join code: <strong>@_household.JoinCode</strong> &mdash; share this with the rest of your family.</p>
+    <AppBar Title="@Greeting" />
+
+    <div class="page">
+        <div class="section-head">
+            <h2>Trackers</h2>
+            <span>@DateTime.Today.ToString("ddd d MMM")</span>
+        </div>
+        <div class="card">
+            <a class="row row-link" href="chores">
+                <span class="avatar">
+                    <Icon Name="chores" />
+                </span>
+                <span class="row-main">
+                    <span class="row-title">Chores</span>
+                    <span class="row-sub">What needs doing today</span>
+                </span>
+                <span class="row-trail row-chevron">
+                    <Icon Name="chevron" />
+                </span>
+            </a>
+            <a class="row row-link" href="expiry">
+                <span class="avatar">
+                    <Icon Name="expiry" />
+                </span>
+                <span class="row-main">
+                    <span class="row-title">Expiry</span>
+                    <span class="row-sub">Use it before it goes off</span>
+                </span>
+                <span class="row-trail row-chevron">
+                    <Icon Name="chevron" />
+                </span>
+            </a>
+            <a class="row row-link" href="medications">
+                <span class="avatar">
+                    <Icon Name="meds" />
+                </span>
+                <span class="row-main">
+                    <span class="row-title">Medications</span>
+                    <span class="row-sub">Schedules and Dose Logs</span>
+                </span>
+                <span class="row-trail row-chevron">
+                    <Icon Name="chevron" />
+                </span>
+            </a>
+            <a class="row row-link" href="warranties">
+                <span class="avatar">
+                    <Icon Name="warranty" />
+                </span>
+                <span class="row-main">
+                    <span class="row-title">Warranties</span>
+                    <span class="row-sub">Receipts and cover dates</span>
+                </span>
+                <span class="row-trail row-chevron">
+                    <Icon Name="chevron" />
+                </span>
+            </a>
+            <a class="row row-link" href="first-aid">
+                <span class="avatar">
+                    <Icon Name="firstaid" />
+                </span>
+                <span class="row-main">
+                    <span class="row-title">First aid</span>
+                    <span class="row-sub">Kit stock and expiry</span>
+                </span>
+                <span class="row-trail row-chevron">
+                    <Icon Name="chevron" />
+                </span>
+            </a>
+        </div>
+
+        <div class="section-head">
+            <h2>Household</h2>
+        </div>
+        <div class="card">
+            <div class="row">
+                <span class="avatar">
+                    <Icon Name="key" />
+                </span>
+                <span class="row-main">
+                    <span class="row-title">@_household.JoinCode</span>
+                    <span class="row-sub">Join Code — share it to add a Family Member</span>
+                </span>
+            </div>
+            <a class="row row-link" href="settings">
+                <span class="avatar">
+                    <Icon Name="settings" />
+                </span>
+                <span class="row-main">
+                    <span class="row-title">Settings</span>
+                    <span class="row-sub">Paperless-ngx connection</span>
+                </span>
+                <span class="row-trail row-chevron">
+                    <Icon Name="chevron" />
+                </span>
+            </a>
+        </div>
+    </div>
 }
 
 @code {
     private enum State { Loading, SignedOut, NeedsOnboarding, Ready }
 
+    private enum OnboardMode { Create, Join }
+
     private State _state = State.Loading;
+    private OnboardMode _onboardMode = OnboardMode.Create;
     private HouseholdInfo? _household;
     private string _createDisplayName = string.Empty;
     private string _joinCode = string.Empty;
     private string _joinDisplayName = string.Empty;
     private string? _error;
+
+    private string Greeting => _household is null ? "Family Hub" : $"Hi, {_household.DisplayName}";
 
     protected override async Task OnInitializedAsync()
     {

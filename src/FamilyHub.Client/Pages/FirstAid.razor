@@ -6,63 +6,101 @@
 
 <PageTitle>First-Aid Kit | Family Hub</PageTitle>
 
-<div class="tracker-page">
-    <header class="tracker-header">
-        <div><p class="tracker-eyebrow">First-Aid Kit Inventory</p><h1>First-aid stock</h1></div>
-        <span>Low stock and expiry in one place</span>
-    </header>
+<AppBar Title="First aid">
+    <Trail>
+        <button type="button" class="icon-btn" aria-label="Add stock" @onclick="() => _sheetOpen = true">
+            <Icon Name="plus" />
+        </button>
+    </Trail>
+</AppBar>
 
+<div class="page">
     @if (_isLoading)
     {
-        <div class="tracker-state" role="status">Loading first-aid stock...</div>
+        <div class="state" role="status">Loading stock</div>
     }
     else if (_loadError is not null)
     {
-        <div class="tracker-notice tracker-error" role="alert"><span>@_loadError</span><button type="button" class="tracker-text-action" @onclick="LoadAsync">Try again</button></div>
+        <div class="notice" role="alert">
+            <span>@_loadError</span>
+            <button type="button" class="btn-text" @onclick="LoadAsync">Retry</button>
+        </div>
     }
     else
     {
-        <section class="tracker-editor" aria-labelledby="add-stock-heading">
-            <div class="tracker-section-heading"><h2 id="add-stock-heading">Add first-aid stock</h2><span>Also appears in Expiry Tracker</span></div>
-            <form class="tracker-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
-                <label class="tracker-field-wide"><span>Item name</span><input required maxlength="120" placeholder="e.g. Adhesive bandages" @bind="_name" /></label>
-                <label><span>Quantity</span><input type="number" min="0" required @bind="_quantity" /></label>
-                <label><span>Low-stock threshold</span><input type="number" min="0" required @bind="_lowStockThreshold" /></label>
-                <label><span>Expiry date</span><input type="date" required @bind="_expiresOn" /></label>
-                <label><span>Lead Time (days)</span><input type="number" min="0" max="3650" required @bind="_leadTimeDays" /></label>
-                <button type="submit" class="tracker-primary" disabled="@_isSaving">@(_isSaving ? "Adding..." : "Add stock")</button>
-            </form>
-            @if (_saveError is not null) { <p class="tracker-form-error" role="alert">@_saveError</p> }
-        </section>
-
-        <section class="tracker-list" aria-labelledby="stock-list-heading">
-            <div class="tracker-section-heading"><h2 id="stock-list-heading">Kit inventory</h2><span>@_items.Count @(_items.Count == 1 ? "item" : "items")</span></div>
+        <div class="section-head">
+            <h2>Kit inventory</h2>
+            <span>@_items.Count</span>
+        </div>
+        <div class="card">
             @if (_items.Count == 0)
             {
-                <div class="tracker-empty"><strong>No first-aid stock</strong><span>Add the first Item above.</span></div>
+                <div class="empty">
+                    <strong>Kit is empty</strong>
+                    <span>Tap + to add your first supply.</span>
+                </div>
             }
             else
             {
-                <div class="tracker-rows">
-                    @foreach (var item in _items)
-                    {
-                        var isLow = item.Quantity <= item.LowStockThreshold;
-                        <article class="tracker-row tracker-row-without-date">
-                            <div class="tracker-row-main">
-                                <h3>@item.Name</h3>
-                                <span>Expires @item.ExpiresOn.ToString("MMM d, yyyy") · alert @item.LeadTimeDays days before</span>
-                            </div>
-                            <div class="tracker-row-meta">
-                                <strong>@item.Quantity on hand</strong>
-                                <span class="tracker-badge @(isLow ? "tracker-badge-danger" : string.Empty)">@(isLow ? "Low stock" : $"Threshold {item.LowStockThreshold}")</span>
-                            </div>
-                        </article>
-                    }
-                </div>
+                @foreach (var item in _items)
+                {
+                    var isLow = item.Quantity <= item.LowStockThreshold;
+                    <div class="row">
+                        <div class="datechip @(isLow ? "is-alert" : null)">
+                            <span>Qty</span>
+                            <strong>@item.Quantity</strong>
+                        </div>
+                        <div class="row-main">
+                            <div class="row-title">@item.Name</div>
+                            <div class="row-sub">Expires @item.ExpiresOn.ToString("d MMM yyyy")</div>
+                        </div>
+                        <div class="row-trail">
+                            <span class="chip @(isLow ? "chip-danger" : null)">
+                                @(isLow ? "Low stock" : $"Min {item.LowStockThreshold}")
+                            </span>
+                        </div>
+                    </div>
+                }
             }
-        </section>
+        </div>
     }
 </div>
+
+<Sheet @bind-Open="_sheetOpen" Title="New first-aid stock">
+    <form class="fields" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+        <label class="field">
+            <span>Item</span>
+            <input required maxlength="120" placeholder="e.g. Adhesive bandages" @bind="_name" />
+        </label>
+        <div class="field-pair">
+            <label class="field">
+                <span>Quantity</span>
+                <input type="number" min="0" required @bind="_quantity" />
+            </label>
+            <label class="field">
+                <span>Low-stock at</span>
+                <input type="number" min="0" required @bind="_lowStockThreshold" />
+            </label>
+        </div>
+        <div class="field-pair">
+            <label class="field">
+                <span>Expires on</span>
+                <input type="date" required @bind="_expiresOn" />
+            </label>
+            <label class="field">
+                <span>Lead Time (days)</span>
+                <input type="number" min="0" max="3650" required @bind="_leadTimeDays" />
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
+            @(_isSaving ? "Adding" : "Add stock")
+        </button>
+    </form>
+    @if (_saveError is not null)
+    {
+        <p class="form-error" role="alert">@_saveError</p>
+    }
+</Sheet>
 
 @code {
     private IReadOnlyList<FirstAidItem> _items = [];
@@ -75,6 +113,7 @@
     private string? _saveError;
     private bool _isLoading = true;
     private bool _isSaving;
+    private bool _sheetOpen;
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -112,6 +151,7 @@
             await FirstAidClient.CreateAsync(_name.Trim(), _quantity, _lowStockThreshold, _expiresOn, _leadTimeDays);
             _name = string.Empty;
             _items = await FirstAidClient.GetAllAsync();
+            _sheetOpen = false;
         }
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {

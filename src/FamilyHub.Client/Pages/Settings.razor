@@ -6,41 +6,51 @@
 
 <PageTitle>Settings | Family Hub</PageTitle>
 
-<div class="tracker-page">
-    <header class="tracker-header">
-        <div><p class="tracker-eyebrow">Household Integrations</p><h1>Settings</h1></div>
-        <span>Shared by everyone in this Household</span>
-    </header>
+<AppBar Title="Settings" />
 
+<div class="page">
     @if (_isLoading)
     {
-        <div class="tracker-state" role="status">Loading settings...</div>
+        <div class="state" role="status">Loading settings</div>
     }
     else if (_loadError is not null)
     {
-        <div class="tracker-notice tracker-error" role="alert"><span>@_loadError</span><button type="button" class="tracker-text-action" @onclick="LoadAsync">Try again</button></div>
+        <div class="notice" role="alert">
+            <span>@_loadError</span>
+            <button type="button" class="btn-text" @onclick="LoadAsync">Retry</button>
+        </div>
     }
     else
     {
-        <section class="tracker-editor" aria-labelledby="paperless-heading">
-            <div class="tracker-section-heading">
-                <h2 id="paperless-heading">Paperless-ngx</h2>
-                <span>@(_configured ? "Connected credentials saved" : "Not configured")</span>
-            </div>
-            <form class="tracker-form" @onsubmit="SaveAsync" @onsubmit:preventDefault>
-                <label class="tracker-field-wide"><span>Server URL</span><input type="url" required maxlength="2048" placeholder="https://paperless.example.com" @bind="_baseUrl" /></label>
-                <label class="tracker-field-wide"><span>API token</span><input type="password" required maxlength="512" autocomplete="new-password" placeholder="Enter a new API token" @bind="_apiToken" /></label>
-                <button type="submit" class="tracker-primary" disabled="@_isSaving">@(_isSaving ? "Saving..." : "Save Paperless settings")</button>
+        <div class="section-head">
+            <h2>Paperless-ngx</h2>
+            <span>@(_configured ? "Connected" : "Not configured")</span>
+        </div>
+        <div class="card" style="padding:16px">
+            <form class="fields" @onsubmit="SaveAsync" @onsubmit:preventDefault>
+                <label class="field">
+                    <span>Server URL</span>
+                    <input type="url" required maxlength="2048" inputmode="url" autocomplete="off"
+                           placeholder="https://paperless.example.com" @bind="_baseUrl" />
+                </label>
+                <label class="field">
+                    <span>API token</span>
+                    <input type="password" required maxlength="512" autocomplete="new-password"
+                           placeholder="Enter a new API token" @bind="_apiToken" />
+                </label>
+                <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
+                    @(_isSaving ? "Saving" : "Save")
+                </button>
             </form>
             @if (_saveError is not null)
             {
-                <p class="tracker-form-error" role="alert">@_saveError</p>
+                <p class="form-error" role="alert">@_saveError</p>
             }
             else if (_saved)
             {
-                <p class="tracker-form-success" role="status">Paperless-ngx settings saved.</p>
+                <p class="form-ok" role="status">Settings saved.</p>
             }
-        </section>
+        </div>
     }
 </div>
 

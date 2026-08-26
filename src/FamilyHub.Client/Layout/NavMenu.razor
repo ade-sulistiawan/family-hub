@@ -1,62 +1,104 @@
-﻿<div class="top-row navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">
-            <span class="brand-mark" aria-hidden="true">FH</span>
-            <span>Family Hub</span>
-        </a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-    </div>
-</div>
+﻿@implements IDisposable
+@inject NavigationManager Navigation
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="nav-symbol" aria-hidden="true">⌂</span> Home
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="chores">
-                <span class="nav-symbol" aria-hidden="true">✓</span> Chores
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="expiry">
-                <span class="nav-symbol" aria-hidden="true">◷</span> Expiry
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="warranties">
-                <span class="nav-symbol" aria-hidden="true">▣</span> Warranties
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="medications">
-                <span class="nav-symbol nav-symbol-text" aria-hidden="true">Rx</span> Medications
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="first-aid">
-                <span class="nav-symbol" aria-hidden="true">+</span> First Aid
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="settings">
-                <span class="nav-symbol" aria-hidden="true">⚙</span> Settings
-            </NavLink>
-        </div>
-    </nav>
-</div>
+<nav class="tabbar" aria-label="Main">
+    <div class="rail-brand">
+        <span class="mark" aria-hidden="true">FH</span>
+        <span>Family Hub</span>
+    </div>
+
+    <NavLink class="tab" href="" Match="NavLinkMatch.All">
+        <Icon Name="home" />
+        <span>Home</span>
+    </NavLink>
+    <NavLink class="tab" href="chores">
+        <Icon Name="chores" />
+        <span>Chores</span>
+    </NavLink>
+    <NavLink class="tab" href="expiry">
+        <Icon Name="expiry" />
+        <span>Expiry</span>
+    </NavLink>
+    <NavLink class="tab" href="medications">
+        <Icon Name="meds" />
+        <span>Meds</span>
+    </NavLink>
+
+    <NavLink class="tab tab-secondary" href="warranties">
+        <Icon Name="warranty" />
+        <span>Warranties</span>
+    </NavLink>
+    <NavLink class="tab tab-secondary" href="first-aid">
+        <Icon Name="firstaid" />
+        <span>First aid</span>
+    </NavLink>
+    <NavLink class="tab tab-secondary" href="settings">
+        <Icon Name="settings" />
+        <span>Settings</span>
+    </NavLink>
+
+    <button type="button" class="tab tab-more" @onclick="() => _moreOpen = true">
+        <Icon Name="more" />
+        <span>More</span>
+    </button>
+</nav>
+
+<Sheet @bind-Open="_moreOpen" Title="More">
+    <div class="card">
+        <a class="row row-link" href="warranties">
+            <span class="avatar">
+                <Icon Name="warranty" />
+            </span>
+            <span class="row-main">
+                <span class="row-title">Warranties</span>
+                <span class="row-sub">Receipts and cover dates</span>
+            </span>
+            <span class="row-trail row-chevron">
+                <Icon Name="chevron" />
+            </span>
+        </a>
+        <a class="row row-link" href="first-aid">
+            <span class="avatar">
+                <Icon Name="firstaid" />
+            </span>
+            <span class="row-main">
+                <span class="row-title">First aid</span>
+                <span class="row-sub">Kit stock and expiry</span>
+            </span>
+            <span class="row-trail row-chevron">
+                <Icon Name="chevron" />
+            </span>
+        </a>
+        <a class="row row-link" href="settings">
+            <span class="avatar">
+                <Icon Name="settings" />
+            </span>
+            <span class="row-main">
+                <span class="row-title">Settings</span>
+                <span class="row-sub">Household integrations</span>
+            </span>
+            <span class="row-trail row-chevron">
+                <Icon Name="chevron" />
+            </span>
+        </a>
+    </div>
+</Sheet>
 
 @code {
-    private bool collapseNavMenu = true;
+    private bool _moreOpen;
 
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+    protected override void OnInitialized() => Navigation.LocationChanged += CloseMore;
 
-    private void ToggleNavMenu()
+    private void CloseMore(object? sender, LocationChangedEventArgs args)
     {
-        collapseNavMenu = !collapseNavMenu;
+        if (!_moreOpen)
+        {
+            return;
+        }
+
+        _moreOpen = false;
+        StateHasChanged();
     }
+
+    public void Dispose() => Navigation.LocationChanged -= CloseMore;
 }

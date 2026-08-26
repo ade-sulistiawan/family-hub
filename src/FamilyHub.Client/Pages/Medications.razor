@@ -7,106 +7,181 @@
 
 <PageTitle>Medications | Family Hub</PageTitle>
 
-<div class="tracker-page">
-    <header class="tracker-header">
-        <div><p class="tracker-eyebrow">Medication &amp; Dosage Reminders</p><h1>Medications</h1></div>
-        <span>Schedules and Dose Logs for the Household</span>
-    </header>
+<AppBar Title="Medications">
+    <Trail>
+        <button type="button" class="icon-btn" aria-label="Add medication" disabled="@(_household is null)"
+                @onclick="() => _sheetOpen = true">
+            <Icon Name="plus" />
+        </button>
+    </Trail>
+</AppBar>
 
+<div class="page">
     @if (_isLoading)
     {
-        <div class="tracker-state" role="status">Loading medications...</div>
+        <div class="state" role="status">Loading medications</div>
     }
     else if (_loadError is not null)
     {
-        <div class="tracker-notice tracker-error" role="alert"><span>@_loadError</span><button type="button" class="tracker-text-action" @onclick="LoadAsync">Try again</button></div>
+        <div class="notice" role="alert">
+            <span>@_loadError</span>
+            <button type="button" class="btn-text" @onclick="LoadAsync">Retry</button>
+        </div>
     }
     else if (_household is not null)
     {
-        <section class="tracker-notification" aria-labelledby="notification-heading">
-            <div>
-                <h2 id="notification-heading">Medication notifications</h2>
-                <span>@GetNotificationDescription()</span>
-            </div>
-            <div class="tracker-notification-actions">
-                <button type="button" class="tracker-secondary" disabled="@_isEnablingNotifications" @onclick="EnableNotificationsAsync">
-                    @(_isEnablingNotifications ? "Enabling..." : _notificationPermission == "granted" ? "Refresh setup" : "Enable notifications")
-                </button>
-                @if (_pushSubscriptionId is not null)
-                {
-                    <button type="button" class="tracker-secondary" disabled="@_isSendingTest" @onclick="SendTestNotificationAsync">
-                        @(_isSendingTest ? "Sending..." : "Send test")
-                    </button>
-                }
-            </div>
-        </section>
-        @if (_notificationError is not null)
+        <div class="section-head">
+            <h2>Plan</h2>
+            <span>@_medications.Count</span>
+        </div>
+
+        @if (_actionError is not null)
         {
-            <p class="tracker-form-error" role="alert">@_notificationError</p>
+            <div class="notice" role="alert">@_actionError</div>
         }
 
-        <section class="tracker-editor" aria-labelledby="add-medication-heading">
-            <div class="tracker-section-heading"><h2 id="add-medication-heading">Add medication</h2><span>Assigned to @_household.DisplayName</span></div>
-            <form class="tracker-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
-                <label class="tracker-field-wide"><span>Medication</span><input required maxlength="120" placeholder="e.g. Vitamin D" @bind="_name" /></label>
-                <label><span>Dosage</span><input required maxlength="120" placeholder="e.g. 1 tablet" @bind="_dosage" /></label>
-                <label><span>Type</span><select @bind="_kind"><option value="Scheduled">Scheduled</option><option value="Prn">PRN Medication</option></select></label>
-                @if (_kind == "Scheduled")
-                {
-                    <label><span>Daily time</span><input type="time" required @bind="_scheduledTime" /></label>
-                }
-                else
-                {
-                    <label><span>Minimum hours between doses</span><input type="number" min="1" required @bind="_minimumHoursBetweenDoses" /></label>
-                }
-                <button type="submit" class="tracker-primary" disabled="@_isSaving">@(_isSaving ? "Adding..." : "Add medication")</button>
-            </form>
-            @if (_saveError is not null) { <p class="tracker-form-error" role="alert">@_saveError</p> }
-        </section>
-
-        <section class="tracker-list" aria-labelledby="medication-list-heading">
-            <div class="tracker-section-heading"><h2 id="medication-list-heading">Medication plan</h2><span>@_medications.Count @(_medications.Count == 1 ? "medication" : "medications")</span></div>
-            @if (_actionError is not null) { <div class="tracker-notice tracker-error tracker-inline-error" role="alert">@_actionError</div> }
+        <div class="card">
             @if (_medications.Count == 0)
             {
-                <div class="tracker-empty"><strong>No medications</strong><span>Add Scheduled or PRN Medication above.</span></div>
+                <div class="empty">
+                    <strong>No medications</strong>
+                    <span>Tap + to add a Scheduled or PRN Medication.</span>
+                </div>
             }
             else
             {
-                <div class="tracker-rows">
-                    @foreach (var medication in _medications)
-                    {
-                        <article class="tracker-row tracker-row-without-date">
-                            <div class="tracker-row-main">
-                                <h3>@medication.Name</h3>
-                                <span>@medication.Dosage · @medication.AssignedDisplayName · @GetScheduleText(medication)</span>
-                            </div>
-                            <div class="tracker-row-actions">
-                                <span class="tracker-badge">@(medication.Kind == "Prn" ? "PRN" : "Scheduled")</span>
-                                <button type="button" class="tracker-secondary" disabled="@(_loggingMedicationId == medication.MedicationId)" @onclick="() => LogTakenAsync(medication)">
-                                    @(_loggingMedicationId == medication.MedicationId ? "Logging..." : "Log taken")
-                                </button>
-                            </div>
-                        </article>
-                    }
+                @foreach (var medication in _medications)
+                {
+                    <div class="row">
+                        <span class="avatar">
+                            <Icon Name="meds" />
+                        </span>
+                        <div class="row-main">
+                            <div class="row-title">@medication.Name</div>
+                            <div class="row-sub">@medication.Dosage · @GetScheduleText(medication)</div>
+                        </div>
+                        <div class="row-trail row-trail-stack">
+                            <span class="chip">@(medication.Kind == "Prn" ? "PRN" : "Scheduled")</span>
+                            <button type="button" class="btn btn-sm" disabled="@(_loggingMedicationId == medication.MedicationId)"
+                                    @onclick="() => LogTakenAsync(medication)">
+                                @(_loggingMedicationId == medication.MedicationId ? "Logging" : "Log dose")
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <div class="section-head">
+            <h2>Reminders</h2>
+        </div>
+        <div class="card">
+            <div class="row">
+                <span class="avatar">
+                    <Icon Name="bell" />
+                </span>
+                <div class="row-main">
+                    <div class="row-title">Push notifications</div>
+                    <div class="row-sub">@GetNotificationDescription()</div>
+                </div>
+                <div class="row-trail">
+                    <button type="button" class="btn btn-sm" disabled="@_isEnablingNotifications"
+                            @onclick="EnableNotificationsAsync">
+                        @(_isEnablingNotifications ? "Working" : _notificationPermission == "granted" ? "Refresh" :
+  "Enable")
+                    </button>
+                </div>
+            </div>
+            @if (_pushSubscriptionId is not null)
+            {
+                <div class="row">
+                    <span class="avatar">
+                        <Icon Name="chores" />
+                    </span>
+                    <div class="row-main">
+                        <div class="row-title">Test notification</div>
+                        <div class="row-sub">Check this device receives reminders</div>
+                    </div>
+                    <div class="row-trail">
+                        <button type="button" class="btn btn-sm" disabled="@_isSendingTest"
+                                @onclick="SendTestNotificationAsync">
+                            @(_isSendingTest ? "Sending" : "Send")
+                        </button>
+                    </div>
                 </div>
             }
-        </section>
+        </div>
+        @if (_notificationError is not null)
+        {
+            <p class="form-error" role="alert">@_notificationError</p>
+        }
 
         @if (_doseLogs.Count > 0)
         {
-            <section class="tracker-list" aria-labelledby="dose-log-heading">
-                <div class="tracker-section-heading"><h2 id="dose-log-heading">Recent Dose Logs</h2><span>Latest first</span></div>
-                <div class="tracker-history">
-                    @foreach (var log in _doseLogs.Take(8))
-                    {
-                        <div><strong>@GetMedicationName(log.MedicationId)</strong><span>@log.Status · @log.LoggedAt.LocalDateTime.ToString("MMM d, h:mm tt")</span></div>
-                    }
-                </div>
-            </section>
+            <div class="section-head">
+                <h2>Recent Dose Logs</h2>
+                <span>Latest first</span>
+            </div>
+            <div class="card">
+                @foreach (var log in _doseLogs.Take(8))
+                {
+                    <div class="row">
+                        <div class="row-main">
+                            <div class="row-title">@GetMedicationName(log.MedicationId)</div>
+                            <div class="row-sub">@log.LoggedAt.LocalDateTime.ToString("ddd d MMM, h:mm tt")</div>
+                        </div>
+                        <div class="row-trail">
+                            <span class="chip">@log.Status</span>
+                        </div>
+                    </div>
+                }
+            </div>
         }
     }
 </div>
+
+<Sheet @bind-Open="_sheetOpen" Title="New medication">
+    <form class="fields" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+        <label class="field">
+            <span>Medication</span>
+            <input required maxlength="120" placeholder="e.g. Vitamin D" @bind="_name" />
+        </label>
+        <label class="field">
+            <span>Dosage</span>
+            <input required maxlength="120" placeholder="e.g. 1 tablet" @bind="_dosage" />
+        </label>
+        <div class="field">
+            <span>Type</span>
+            <div class="segmented">
+                <button type="button" class="@(_kind == "Scheduled" ? "is-on" : null)"
+                        @onclick='() => _kind = "Scheduled"'>Scheduled</button>
+                <button type="button" class="@(_kind == "Prn" ? "is-on" : null)"
+                        @onclick='() => _kind = "Prn"'>PRN</button>
+            </div>
+        </div>
+        @if (_kind == "Scheduled")
+        {
+            <label class="field">
+                <span>Daily time</span>
+                <input type="time" required @bind="_scheduledTime" />
+            </label>
+        }
+        else
+        {
+            <label class="field">
+                <span>Minimum hours between doses</span>
+                <input type="number" min="1" required @bind="_minimumHoursBetweenDoses" />
+            </label>
+        }
+        <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
+            @(_isSaving ? "Adding" : "Add medication")
+        </button>
+    </form>
+    @if (_saveError is not null)
+    {
+        <p class="form-error" role="alert">@_saveError</p>
+    }
+</Sheet>
 
 @code {
     private HouseholdInfo? _household;
@@ -122,6 +197,7 @@
     private string? _actionError;
     private bool _isLoading = true;
     private bool _isSaving;
+    private bool _sheetOpen;
     private Guid? _loggingMedicationId;
     private Guid? _pushSubscriptionId;
     private string _notificationPermission = "default";
@@ -197,6 +273,7 @@
             _name = string.Empty;
             _dosage = string.Empty;
             _medications = await MedicationClient.GetAllAsync();
+            _sheetOpen = false;
         }
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
