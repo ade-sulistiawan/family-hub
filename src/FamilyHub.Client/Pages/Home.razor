@@ -2,6 +2,7 @@
 @using FamilyHub.Services
 @inject HouseholdClient HouseholdClient
 @inject HttpClient Http
+@inject NavigationManager Navigation
 
 <PageTitle>Family Hub</PageTitle>
 
@@ -15,7 +16,7 @@ else if (_state == State.SignedOut)
         <span class="mark" aria-hidden="true">FH</span>
         <h1>Family Hub</h1>
         <p>Chores, expiry dates, warranties and medication for everyone under one roof.</p>
-        <a class="btn btn-primary btn-block" href="/login">Continue with Google</a>
+        <button type="button" class="btn btn-primary btn-block" @onclick=SignIn>Continue with Google</button>
     </div>
 }
 else if (_state == State.NeedsOnboarding)
@@ -178,6 +179,9 @@ else if (_state == State.Ready && _household is not null)
     private string? _error;
 
     private string Greeting => _household is null ? "Family Hub" : $"Hi, {_household.DisplayName}";
+
+    // /login is a server endpoint (Challenge redirect), not a client route — must bypass Blazor's router.
+    private void SignIn() => Navigation.NavigateTo("/login", forceLoad: true);
 
     protected override async Task OnInitializedAsync()
     {
