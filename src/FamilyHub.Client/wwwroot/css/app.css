@@ -259,6 +259,23 @@ button {
   background: var(--surface-2);
 }
 
+.row-hit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  text-align: left;
+  color: inherit;
+}
+
+.row-hit:active {
+  opacity: 0.7;
+}
+
 .row-main {
   flex: 1;
   min-width: 0;
@@ -469,6 +486,29 @@ button {
   background: none;
   color: var(--accent);
   font-size: 14px;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-danger:not(:disabled):active {
+  background: var(--danger);
+  opacity: 0.85;
+}
+
+.confirm-message {
+  margin: 0 0 16px;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .icon-btn {

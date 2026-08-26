@@ -53,13 +53,15 @@
                 @foreach (var medication in _medications)
                 {
                     <div class="row">
-                        <span class="avatar">
-                            <Icon Name="meds" />
-                        </span>
-                        <div class="row-main">
-                            <div class="row-title">@medication.Name</div>
-                            <div class="row-sub">@medication.Dosage · @GetScheduleText(medication)</div>
-                        </div>
+                        <button type="button" class="row-hit" @onclick="() => OpenEditMedication(medication)">
+                            <span class="avatar">
+                                <Icon Name="meds" />
+                            </span>
+                            <div class="row-main">
+                                <div class="row-title">@medication.Name</div>
+                                <div class="row-sub">@medication.Dosage · @GetScheduleText(medication)</div>
+                            </div>
+                        </button>
                         <div class="row-trail row-trail-stack">
                             <span class="chip">@(medication.Kind == "Prn" ? "PRN" : "Scheduled")</span>
                             <button type="button" class="btn btn-sm" disabled="@(_loggingMedicationId == medication.MedicationId)"
@@ -125,7 +127,7 @@
             <div class="card">
                 @foreach (var log in _doseLogs.Take(8))
                 {
-                    <div class="row">
+                    <button type="button" class="row row-link" @onclick="() => OpenEditDoseLog(log)">
                         <div class="row-main">
                             <div class="row-title">@GetMedicationName(log.MedicationId)</div>
                             <div class="row-sub">@log.LoggedAt.LocalDateTime.ToString("ddd d MMM, h:mm tt")</div>
@@ -133,7 +135,7 @@
                         <div class="row-trail">
                             <span class="chip">@log.Status</span>
                         </div>
-                    </div>
+                    </button>
                 }
             </div>
         }
@@ -183,6 +185,88 @@
     }
 </Sheet>
 
+<Sheet @bind-Open="_editMedicationSheetOpen" Title="Edit medication">
+    <form class="fields" @onsubmit="UpdateMedicationAsync" @onsubmit:preventDefault>
+        <label class="field">
+            <span>Medication</span>
+            <input required maxlength="120" @bind="_editName" />
+        </label>
+        <label class="field">
+            <span>Dosage</span>
+            <input required maxlength="120" @bind="_editDosage" />
+        </label>
+        <div class="field">
+            <span>Type</span>
+            <div class="segmented">
+                <button type="button" class="@(_editKind == "Scheduled" ? "is-on" : null)"
+                        @onclick='() => _editKind = "Scheduled"'>Scheduled</button>
+                <button type="button" class="@(_editKind == "Prn" ? "is-on" : null)"
+                        @onclick='() => _editKind = "Prn"'>PRN</button>
+            </div>
+        </div>
+        @if (_editKind == "Scheduled")
+        {
+            <label class="field">
+                <span>Daily time</span>
+                <input type="time" required @bind="_editScheduledTime" />
+            </label>
+        }
+        else
+        {
+            <label class="field">
+                <span>Minimum hours between doses</span>
+                <input type="number" min="1" required @bind="_editMinimumHoursBetweenDoses" />
+            </label>
+        }
+        <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
+            @(_isSaving ? "Saving" : "Save changes")
+        </button>
+        <button type="button" class="btn-text" @onclick="() => _confirmDeleteMedicationOpen = true">Delete medication</button>
+    </form>
+    @if (_editMedicationError is not null)
+    {
+        <p class="form-error" role="alert">@_editMedicationError</p>
+    }
+</Sheet>
+
+<ConfirmDialog @bind-Open="_confirmDeleteMedicationOpen"
+               Title="Delete medication"
+               Message="@_deleteMedicationMessage"
+               OnConfirm="DeleteMedicationAsync"
+               Error="@_deleteMedicationError"
+               IsBusy="_isDeletingMedication" />
+
+<Sheet @bind-Open="_editDoseLogSheetOpen" Title="Edit Dose Log">
+    <form class="fields" @onsubmit="UpdateDoseLogAsync" @onsubmit:preventDefault>
+        <div class="field">
+            <span>Status</span>
+            <div class="segmented">
+                <button type="button" class="@(_editDoseLogStatus == "Taken" ? "is-on" : null)"
+                        @onclick='() => _editDoseLogStatus = "Taken"'>Taken</button>
+                <button type="button" class="@(_editDoseLogStatus == "Skipped" ? "is-on" : null)"
+                        @onclick='() => _editDoseLogStatus = "Skipped"'>Skipped</button>
+                <button type="button" class="@(_editDoseLogStatus == "Missed" ? "is-on" : null)"
+                        @onclick='() => _editDoseLogStatus = "Missed"'>Missed</button>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
+            @(_isSaving ? "Saving" : "Save changes")
+        </button>
+        <button type="button" class="btn-text" @onclick="() => _confirmDeleteDoseLogOpen = true">Delete entry</button>
+    </form>
+    @if (_editDoseLogError is not null)
+    {
+        <p class="form-error" role="alert">@_editDoseLogError</p>
+    }
+</Sheet>
+
+<ConfirmDialog @bind-Open="_confirmDeleteDoseLogOpen"
+               Title="Delete Dose Log entry"
+               Message="Only an exact duplicate entry can be deleted; correct it above instead if it isn't."
+               OnConfirm="DeleteDoseLogAsync"
+               Error="@_deleteDoseLogError"
+               IsBusy="_isDeletingDoseLog" />
+
 @code {
     private HouseholdInfo? _household;
     private IReadOnlyList<MedicationItem> _medications = [];
@@ -204,6 +288,27 @@
     private string? _notificationError;
     private bool _isEnablingNotifications;
     private bool _isSendingTest;
+
+    private MedicationItem? _editMedication;
+    private string _editName = string.Empty;
+    private string _editDosage = string.Empty;
+    private string _editKind = "Scheduled";
+    private TimeOnly _editScheduledTime = new(8, 0);
+    private int _editMinimumHoursBetweenDoses = 6;
+    private string? _editMedicationError;
+    private bool _editMedicationSheetOpen;
+    private bool _confirmDeleteMedicationOpen;
+    private string? _deleteMedicationError;
+    private bool _isDeletingMedication;
+    private string _deleteMedicationMessage = string.Empty;
+
+    private DoseLogItem? _editDoseLog;
+    private string _editDoseLogStatus = "Taken";
+    private string? _editDoseLogError;
+    private bool _editDoseLogSheetOpen;
+    private bool _confirmDeleteDoseLogOpen;
+    private string? _deleteDoseLogError;
+    private bool _isDeletingDoseLog;
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -365,4 +470,130 @@
 
     private string GetMedicationName(Guid medicationId) =>
         _medications.FirstOrDefault(medication => medication.MedicationId == medicationId)?.Name ?? "Medication";
+
+    private void OpenEditMedication(MedicationItem medication)
+    {
+        _editMedication = medication;
+        _editName = medication.Name;
+        _editDosage = medication.Dosage;
+        _editKind = medication.Kind;
+        _editScheduledTime = medication.ScheduledTime ?? new TimeOnly(8, 0);
+        _editMinimumHoursBetweenDoses = medication.MinimumHoursBetweenDoses ?? 6;
+        _editMedicationError = null;
+        _deleteMedicationError = null;
+        _deleteMedicationMessage = $"Delete {medication.Name}? This can't be undone.";
+        _editMedicationSheetOpen = true;
+    }
+
+    private async Task UpdateMedicationAsync()
+    {
+        if (_editMedication is null || string.IsNullOrWhiteSpace(_editName) || string.IsNullOrWhiteSpace(_editDosage)) return;
+        _isSaving = true;
+        _editMedicationError = null;
+        try
+        {
+            await MedicationClient.UpdateAsync(
+                _editMedication.MedicationId,
+                _editName.Trim(),
+                _editDosage.Trim(),
+                _editMedication.AssignedFamilyMemberId,
+                _editKind,
+                _editKind == "Scheduled" ? _editScheduledTime : null,
+                _editKind == "Prn" ? _editMinimumHoursBetweenDoses : null);
+            _medications = await MedicationClient.GetAllAsync();
+            _editMedicationSheetOpen = false;
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/medications", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _editMedicationError = "The medication could not be saved.";
+        }
+        finally { _isSaving = false; }
+    }
+
+    private async Task DeleteMedicationAsync()
+    {
+        if (_editMedication is null) return;
+        _isDeletingMedication = true;
+        _deleteMedicationError = null;
+        try
+        {
+            await MedicationClient.DeleteAsync(_editMedication.MedicationId);
+            _medications = await MedicationClient.GetAllAsync();
+            _doseLogs = await MedicationClient.GetDoseLogsAsync();
+            _confirmDeleteMedicationOpen = false;
+            _editMedicationSheetOpen = false;
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/medications", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _deleteMedicationError = "The medication could not be deleted.";
+        }
+        finally { _isDeletingMedication = false; }
+    }
+
+    private void OpenEditDoseLog(DoseLogItem log)
+    {
+        _editDoseLog = log;
+        _editDoseLogStatus = log.Status;
+        _editDoseLogError = null;
+        _deleteDoseLogError = null;
+        _editDoseLogSheetOpen = true;
+    }
+
+    private async Task UpdateDoseLogAsync()
+    {
+        if (_editDoseLog is null) return;
+        _isSaving = true;
+        _editDoseLogError = null;
+        try
+        {
+            await MedicationClient.UpdateDoseLogAsync(_editDoseLog.DoseLogId, _editDoseLogStatus);
+            _doseLogs = await MedicationClient.GetDoseLogsAsync();
+            _editDoseLogSheetOpen = false;
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/medications", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _editDoseLogError = "The Dose Log entry could not be saved.";
+        }
+        finally { _isSaving = false; }
+    }
+
+    private async Task DeleteDoseLogAsync()
+    {
+        if (_editDoseLog is null) return;
+        _isDeletingDoseLog = true;
+        _deleteDoseLogError = null;
+        try
+        {
+            var deleted = await MedicationClient.TryDeleteDoseLogAsync(_editDoseLog.DoseLogId);
+            if (!deleted)
+            {
+                _deleteDoseLogError = "Only an exact duplicate entry can be deleted. Edit it instead to correct it.";
+                return;
+            }
+            _doseLogs = await MedicationClient.GetDoseLogsAsync();
+            _confirmDeleteDoseLogOpen = false;
+            _editDoseLogSheetOpen = false;
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/medications", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _deleteDoseLogError = "The Dose Log entry could not be deleted.";
+        }
+        finally { _isDeletingDoseLog = false; }
+    }
 }

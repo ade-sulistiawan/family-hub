@@ -12,6 +12,18 @@ public class ExpiryClient(HttpClient http)
         var response = await http.PostAsJsonAsync("/api/expiry-items", new { name, expiresOn, leadTimeDays });
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task UpdateAsync(Guid itemId, string name, DateOnly expiresOn, int leadTimeDays)
+    {
+        var response = await http.PutAsJsonAsync($"/api/expiry-items/{itemId}", new { name, expiresOn, leadTimeDays });
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteAsync(Guid itemId)
+    {
+        var response = await http.DeleteAsync($"/api/expiry-items/{itemId}");
+        response.EnsureSuccessStatusCode();
+    }
 }
 
 public record ExpiryItem(Guid ItemId, string Name, DateOnly ExpiresOn, int LeadTimeDays);

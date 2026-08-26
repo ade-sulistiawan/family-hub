@@ -37,6 +37,50 @@ public class MedicationClient(HttpClient http)
             new { status });
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task UpdateAsync(
+        Guid medicationId,
+        string name,
+        string dosage,
+        Guid assignedFamilyMemberId,
+        string kind,
+        TimeOnly? scheduledTime,
+        int? minimumHoursBetweenDoses)
+    {
+        var response = await http.PutAsJsonAsync($"/api/medications/{medicationId}", new
+        {
+            name,
+            dosage,
+            assignedFamilyMemberId,
+            kind,
+            scheduledTime,
+            minimumHoursBetweenDoses,
+        });
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteAsync(Guid medicationId)
+    {
+        var response = await http.DeleteAsync($"/api/medications/{medicationId}");
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateDoseLogAsync(Guid doseLogId, string status)
+    {
+        var response = await http.PutAsJsonAsync($"/api/medications/dose-logs/{doseLogId}", new { status });
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<bool> TryDeleteDoseLogAsync(Guid doseLogId)
+    {
+        var response = await http.DeleteAsync($"/api/medications/dose-logs/{doseLogId}");
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            return false;
+        }
+        response.EnsureSuccessStatusCode();
+        return true;
+    }
 }
 
 public record MedicationItem(

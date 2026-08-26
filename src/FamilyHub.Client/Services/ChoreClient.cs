@@ -29,6 +29,24 @@ public class ChoreClient(HttpClient http)
 
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task UpdateAsync(Guid choreId, string title, Guid assignedFamilyMemberId, DateOnly scheduledDate)
+    {
+        var response = await http.PutAsJsonAsync($"/api/chores/{choreId}", new
+        {
+            title,
+            assignedFamilyMemberId,
+            scheduledDate,
+        });
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteAsync(Guid choreId)
+    {
+        var response = await http.DeleteAsync($"/api/chores/{choreId}");
+        response.EnsureSuccessStatusCode();
+    }
 }
 
 public record ChoreListItem(

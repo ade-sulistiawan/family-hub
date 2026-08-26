@@ -51,14 +51,16 @@
                 @foreach (var chore in _open)
                 {
                     <div class="row">
-                        <div class="datechip @(chore.ScheduledDate <= DateOnly.FromDateTime(DateTime.Today) ? "is-alert" : null)">
-                            <span>@chore.ScheduledDate.ToString("MMM")</span>
-                            <strong>@chore.ScheduledDate.Day</strong>
-                        </div>
-                        <div class="row-main">
-                            <div class="row-title">@chore.Title</div>
-                            <div class="row-sub">@chore.AssignedDisplayName</div>
-                        </div>
+                        <button type="button" class="row-link row-hit" @onclick="() => OpenEdit(chore)">
+                            <div class="datechip @(chore.ScheduledDate <= DateOnly.FromDateTime(DateTime.Today) ? "is-alert" : null)">
+                                <span>@chore.ScheduledDate.ToString("MMM")</span>
+                                <strong>@chore.ScheduledDate.Day</strong>
+                            </div>
+                            <div class="row-main">
+                                <div class="row-title">@chore.Title</div>
+                                <div class="row-sub">@chore.AssignedDisplayName</div>
+                            </div>
+                        </button>
                         <div class="row-trail">
                             <button type="button" class="btn btn-sm"
                                     disabled="@(_completingOccurrenceId == chore.ChoreOccurrenceId)"
@@ -80,7 +82,7 @@
             <div class="card">
                 @foreach (var chore in _done)
                 {
-                    <div class="row is-done">
+                    <button type="button" class="row row-link is-done" @onclick="() => OpenEdit(chore)">
                         <div class="datechip">
                             <span>@chore.ScheduledDate.ToString("MMM")</span>
                             <strong>@chore.ScheduledDate.Day</strong>
@@ -92,7 +94,7 @@
                         <div class="row-trail">
                             <span class="chip chip-ok">Done</span>
                         </div>
-                    </div>
+                    </button>
                 }
             </div>
         }
@@ -119,6 +121,34 @@
     }
 </Sheet>
 
+<Sheet @bind-Open="_editSheetOpen" Title="Edit chore">
+    <form class="fields" @onsubmit="UpdateAsync" @onsubmit:preventDefault>
+        <label class="field">
+            <span>Chore</span>
+            <input required maxlength="120" @bind="_editTitle" />
+        </label>
+        <label class="field">
+            <span>Due date</span>
+            <input type="date" required @bind="_editScheduledDate" />
+        </label>
+        <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
+            @(_isSaving ? "Saving" : "Save changes")
+        </button>
+        <button type="button" class="btn-text" @onclick="() => _confirmDeleteOpen = true">Delete chore</button>
+    </form>
+    @if (_editError is not null)
+    {
+        <p class="form-error" role="alert">@_editError</p>
+    }
+</Sheet>
+
+<ConfirmDialog @bind-Open="_confirmDeleteOpen"
+               Title="Delete chore"
+               Message="@_deleteMessage"
+               OnConfirm="DeleteAsync"
+               Error="@_deleteError"
+               IsBusy="_isDeleting" />
+
 @code {
     private HouseholdInfo? _household;
     private string _title = string.Empty;
@@ -130,6 +160,16 @@
     private bool _isSaving;
     private bool _sheetOpen;
     private Guid? _completingOccurrenceId;
+
+    private ChoreListItem? _editChore;
+    private string _editTitle = string.Empty;
+    private DateOnly _editScheduledDate;
+    private string? _editError;
+    private bool _editSheetOpen;
+    private bool _confirmDeleteOpen;
+    private string? _deleteError;
+    private bool _isDeleting;
+    private string _deleteMessage = string.Empty;
 
     private IReadOnlyList<ChoreListItem> _open = [];
     private IReadOnlyList<ChoreListItem> _done = [];
@@ -223,6 +263,72 @@
         finally
         {
             _completingOccurrenceId = null;
+        }
+    }
+
+    private void OpenEdit(ChoreListItem chore)
+    {
+        _editChore = chore;
+        _editTitle = chore.Title;
+        _editScheduledDate = chore.ScheduledDate;
+        _editError = null;
+        _deleteError = null;
+        _deleteMessage = $"Delete {chore.Title}? This can't be undone.";
+        _editSheetOpen = true;
+    }
+
+    private async Task UpdateAsync()
+    {
+        if (_editChore is null || string.IsNullOrWhiteSpace(_editTitle)) return;
+        _isSaving = true;
+        _editError = null;
+        try
+        {
+            await ChoreClient.UpdateAsync(
+                _editChore.ChoreId,
+                _editTitle.Trim(),
+                _editChore.AssignedFamilyMemberId,
+                _editScheduledDate);
+            SetChores(await ChoreClient.GetAllAsync());
+            _editSheetOpen = false;
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/chores", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _editError = "The chore could not be saved.";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_editChore is null) return;
+        _isDeleting = true;
+        _deleteError = null;
+        try
+        {
+            await ChoreClient.DeleteAsync(_editChore.ChoreId);
+            SetChores(await ChoreClient.GetAllAsync());
+            _confirmDeleteOpen = false;
+            _editSheetOpen = false;
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/chores", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _deleteError = "The chore could not be deleted.";
+        }
+        finally
+        {
+            _isDeleting = false;
         }
     }
 

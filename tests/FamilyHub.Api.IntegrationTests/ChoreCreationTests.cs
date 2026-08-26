@@ -158,6 +158,57 @@ public class ChoreCreationTests : IClassFixture<FamilyHubApiFactory>
         Assert.Equal(HttpStatusCode.BadRequest, longTitleResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task Family_member_can_edit_and_delete_a_chore()
+    {
+        var client = SignedInClient("chore-editor");
+        var household = await Onboard(client, "Alex");
+        var chore = await CreateChore(client, "Take bins out", household.FamilyMemberId, new DateOnly(2026, 8, 25));
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/chores/{chore.ChoreId}", new
+        {
+            title = "Take recycling out",
+            assignedFamilyMemberId = household.FamilyMemberId,
+            scheduledDate = new DateOnly(2026, 8, 27),
+        });
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        var updated = Assert.Single((await client.GetFromJsonAsync<List<ListedChoreResponse>>("/api/chores"))!);
+        Assert.Equal("Take recycling out", updated.Title);
+        Assert.Equal(new DateOnly(2026, 8, 27), updated.ScheduledDate);
+
+        var deleteResponse = await client.DeleteAsync($"/api/chores/{chore.ChoreId}");
+
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+        Assert.Empty((await client.GetFromJsonAsync<List<ListedChoreResponse>>("/api/chores"))!);
+    }
+
+    [Fact]
+    public async Task Family_member_cannot_edit_or_delete_a_chore_outside_their_household()
+    {
+        var otherClient = SignedInClient("other-chore-editor");
+        var otherHousehold = await Onboard(otherClient, "Sam");
+        var otherChore = await CreateChore(
+            otherClient,
+            "Water plants",
+            otherHousehold.FamilyMemberId,
+            new DateOnly(2026, 8, 25));
+
+        var client = SignedInClient("isolated-chore-editor");
+        await Onboard(client, "Alex");
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/chores/{otherChore.ChoreId}", new
+        {
+            title = "Hijacked",
+            assignedFamilyMemberId = otherHousehold.FamilyMemberId,
+            scheduledDate = new DateOnly(2026, 8, 27),
+        });
+        var deleteResponse = await client.DeleteAsync($"/api/chores/{otherChore.ChoreId}");
+
+        Assert.Equal(HttpStatusCode.NotFound, updateResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, deleteResponse.StatusCode);
+    }
+
     private HttpClient SignedInClient(string googleSubjectId)
     {
         var client = _factory.CreateClient();

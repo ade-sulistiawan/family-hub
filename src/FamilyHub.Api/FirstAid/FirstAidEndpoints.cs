@@ -14,6 +14,8 @@ public static class FirstAidEndpoints
         var group = app.MapGroup("/api/first-aid-items").RequireAuthorization();
         group.MapGet("/", GetAll);
         group.MapPost("/", Create);
+        group.MapPut("/{itemId:guid}", Update);
+        group.MapDelete("/{itemId:guid}", Delete);
         return group;
     }
 
@@ -103,9 +105,86 @@ public static class FirstAidEndpoints
             expiry.ExpiresOn,
             expiry.LeadTimeDays));
     }
+
+    private static async Task<IResult> Update(
+        Guid itemId,
+        UpdateFirstAidItemRequest request,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var name = request.Name?.Trim();
+        if (string.IsNullOrEmpty(name) || name.Length > 120)
+        {
+            return Results.BadRequest("Item name must be between 1 and 120 characters.");
+        }
+
+        if (request.Quantity < 0 || request.LowStockThreshold < 0)
+        {
+            return Results.BadRequest("Stock values cannot be negative.");
+        }
+
+        if (request.LeadTimeDays is < 0 or > 3650)
+        {
+            return Results.BadRequest("Lead Time must be between 0 and 3650 days.");
+        }
+
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var item = await db.Items.SingleOrDefaultAsync(
+            candidate => candidate.Id == itemId && candidate.HouseholdId == currentMember.HouseholdId,
+            cancellationToken);
+        var stock = await db.StockFacets.SingleOrDefaultAsync(candidate => candidate.ItemId == itemId, cancellationToken);
+        var expiry = await db.ExpiryFacets.SingleOrDefaultAsync(candidate => candidate.ItemId == itemId, cancellationToken);
+        if (item is null || stock is null || expiry is null)
+        {
+            return Results.NotFound();
+        }
+
+        item.Name = name;
+        stock.Quantity = request.Quantity;
+        stock.LowStockThreshold = request.LowStockThreshold;
+        expiry.ExpiresOn = request.ExpiresOn;
+        expiry.LeadTimeDays = request.LeadTimeDays;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return Results.Ok(new FirstAidItemResponse(
+            item.Id,
+            item.Name,
+            stock.Quantity,
+            stock.LowStockThreshold,
+            expiry.ExpiresOn,
+            expiry.LeadTimeDays));
+    }
+
+    private static async Task<IResult> Delete(
+        Guid itemId,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        return await ItemOwnership.DeleteAsync(itemId, currentMember.HouseholdId, db, cancellationToken);
+    }
 }
 
 public record CreateFirstAidItemRequest(
+    string Name,
+    int Quantity,
+    int LowStockThreshold,
+    DateOnly ExpiresOn,
+    int LeadTimeDays);
+
+public record UpdateFirstAidItemRequest(
     string Name,
     int Quantity,
     int LowStockThreshold,

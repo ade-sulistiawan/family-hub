@@ -58,16 +58,18 @@
                                 <Icon Name="warranty" />
                             </span>
                         }
-                        <div class="row-main">
-                            <div class="row-title">@item.Name</div>
-                            <div class="row-sub">@GetPurchaseText(item)</div>
-                        </div>
-                        <div class="row-trail row-trail-stack">
-                            <span class="row-value">@GetWarrantyText(item)</span>
-                            <span class="chip">
-                                @(item.DocumentExternalId is null ? "No document" : "Document")
-                            </span>
-                        </div>
+                        <button type="button" class="row-hit" @onclick="() => OpenEdit(item)">
+                            <div class="row-main">
+                                <div class="row-title">@item.Name</div>
+                                <div class="row-sub">@GetPurchaseText(item)</div>
+                            </div>
+                            <div class="row-trail row-trail-stack">
+                                <span class="row-value">@GetWarrantyText(item)</span>
+                                <span class="chip">
+                                    @(item.DocumentExternalId is null ? "No document" : "Document")
+                                </span>
+                            </div>
+                        </button>
                     </div>
                 }
             }
@@ -112,6 +114,44 @@
     }
 </Sheet>
 
+<Sheet @bind-Open="_editSheetOpen" Title="Edit warranty">
+    <form class="fields" @onsubmit="UpdateAsync" @onsubmit:preventDefault>
+        <label class="field">
+            <span>Item</span>
+            <input required maxlength="120" @bind="_editName" />
+        </label>
+        <div class="field-pair">
+            <label class="field">
+                <span>Purchased</span>
+                <input type="date" @bind="_editPurchasedOn" />
+            </label>
+            <label class="field">
+                <span>Covered until</span>
+                <input type="date" @bind="_editWarrantyExpiresOn" />
+            </label>
+        </div>
+        <label class="field">
+            <span>Replace receipt or warranty photo</span>
+            <InputFile @key="_editFileInputKey" OnChange="SelectReplacementDocument" accept="image/*" capture="environment" />
+        </label>
+        <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
+            @(_isSaving ? "Saving" : "Save changes")
+        </button>
+        <button type="button" class="btn-text" @onclick="() => _confirmDeleteOpen = true">Delete warranty</button>
+    </form>
+    @if (_editError is not null)
+    {
+        <p class="form-error" role="alert">@_editError</p>
+    }
+</Sheet>
+
+<ConfirmDialog @bind-Open="_confirmDeleteOpen"
+               Title="Delete warranty"
+               Message="@_deleteMessage"
+               OnConfirm="DeleteAsync"
+               Error="@_deleteError"
+               IsBusy="_isDeleting" />
+
 @code {
     private IReadOnlyList<WarrantyItem> _items = [];
     private string _name = string.Empty;
@@ -126,6 +166,19 @@
     private bool _sheetOpen;
     private bool _previewOpen;
     private WarrantyItem? _previewItem;
+
+    private WarrantyItem? _editItem;
+    private string _editName = string.Empty;
+    private DateOnly? _editPurchasedOn;
+    private DateOnly? _editWarrantyExpiresOn;
+    private IBrowserFile? _editDocument;
+    private int _editFileInputKey;
+    private string? _editError;
+    private bool _editSheetOpen;
+    private bool _confirmDeleteOpen;
+    private string? _deleteError;
+    private bool _isDeleting;
+    private string _deleteMessage = string.Empty;
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -192,6 +245,79 @@
     {
         _previewItem = item;
         _previewOpen = true;
+    }
+
+    private void OpenEdit(WarrantyItem item)
+    {
+        _editItem = item;
+        _editName = item.Name;
+        _editPurchasedOn = item.PurchasedOn;
+        _editWarrantyExpiresOn = item.WarrantyExpiresOn;
+        _editDocument = null;
+        _editFileInputKey++;
+        _editError = null;
+        _deleteError = null;
+        _deleteMessage = $"Delete {item.Name}? This can't be undone.";
+        _editSheetOpen = true;
+    }
+
+    private void SelectReplacementDocument(InputFileChangeEventArgs eventArgs)
+    {
+        _editDocument = eventArgs.File;
+        _editError = null;
+    }
+
+    private async Task UpdateAsync()
+    {
+        if (_editItem is null || string.IsNullOrWhiteSpace(_editName)) return;
+        _isSaving = true;
+        _editError = null;
+        try
+        {
+            await WarrantyClient.UpdateAsync(_editItem.ItemId, _editName.Trim(), _editPurchasedOn, _editWarrantyExpiresOn);
+            if (_editDocument is not null)
+            {
+                await WarrantyClient.ReplaceDocumentAsync(_editItem.ItemId, _editDocument);
+            }
+            _items = await WarrantyClient.GetAllAsync();
+            _editSheetOpen = false;
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/warranties", forceLoad: true);
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            _editError = "Configure Paperless-ngx in Settings before replacing a warranty image.";
+        }
+        catch (HttpRequestException)
+        {
+            _editError = "The warranty could not be saved.";
+        }
+        finally { _isSaving = false; }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_editItem is null) return;
+        _isDeleting = true;
+        _deleteError = null;
+        try
+        {
+            await WarrantyClient.DeleteAsync(_editItem.ItemId);
+            _items = await WarrantyClient.GetAllAsync();
+            _confirmDeleteOpen = false;
+            _editSheetOpen = false;
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/warranties", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _deleteError = "The warranty could not be deleted.";
+        }
+        finally { _isDeleting = false; }
     }
 
     private static string GetPurchaseText(WarrantyItem item) =>

@@ -12,6 +12,8 @@ public static class ChoreEndpoints
         var group = app.MapGroup("/api/chores").RequireAuthorization();
         group.MapGet("/", GetAll);
         group.MapPost("/", Create);
+        group.MapPut("/{choreId:guid}", Update);
+        group.MapDelete("/{choreId:guid}", Delete);
         group.MapPut("/occurrences/{choreOccurrenceId:guid}/completion", CompleteOccurrence);
         return group;
     }
@@ -98,6 +100,91 @@ public static class ChoreEndpoints
             chore.Recurrence.ToString()));
     }
 
+    private static async Task<IResult> Update(
+        Guid choreId,
+        UpdateChoreRequest request,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var title = request.Title?.Trim();
+        if (string.IsNullOrEmpty(title) || title.Length > 120)
+        {
+            return Results.BadRequest("Chore title must be between 1 and 120 characters.");
+        }
+
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var chore = await db.Chores.SingleOrDefaultAsync(
+            candidate => candidate.Id == choreId && candidate.HouseholdId == currentMember.HouseholdId,
+            cancellationToken);
+        if (chore is null)
+        {
+            return Results.NotFound();
+        }
+
+        var assigneeBelongsToHousehold = await db.FamilyMembers.AnyAsync(
+            member => member.Id == request.AssignedFamilyMemberId && member.HouseholdId == currentMember.HouseholdId,
+            cancellationToken);
+        if (!assigneeBelongsToHousehold)
+        {
+            return Results.BadRequest("The assigned Family Member does not belong to this Household.");
+        }
+
+        // A Chore is 1:1 with its Occurrence until recurrence ships, so editing the Chore also
+        // moves its single scheduled date. Use First rather than Single so this degrades to
+        // "edit the earliest occurrence" instead of a 500 if that assumption is ever broken.
+        var occurrence = await db.ChoreOccurrences
+            .OrderBy(candidate => candidate.ScheduledDate)
+            .FirstOrDefaultAsync(candidate => candidate.ChoreId == choreId, cancellationToken);
+        if (occurrence is null)
+        {
+            return Results.NotFound();
+        }
+
+        chore.Title = title;
+        chore.AssignedFamilyMemberId = request.AssignedFamilyMemberId;
+        occurrence.ScheduledDate = request.ScheduledDate;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return Results.Ok(new ChoreResponse(
+            chore.Id,
+            occurrence.Id,
+            chore.Title,
+            chore.AssignedFamilyMemberId,
+            occurrence.ScheduledDate,
+            chore.Recurrence.ToString()));
+    }
+
+    private static async Task<IResult> Delete(
+        Guid choreId,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var chore = await db.Chores.SingleOrDefaultAsync(
+            candidate => candidate.Id == choreId && candidate.HouseholdId == currentMember.HouseholdId,
+            cancellationToken);
+        if (chore is null)
+        {
+            return Results.NotFound();
+        }
+
+        db.Chores.Remove(chore);
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.NoContent();
+    }
+
     private static async Task<IResult> CompleteOccurrence(
         Guid choreOccurrenceId,
         ClaimsPrincipal user,
@@ -133,6 +220,8 @@ public static class ChoreEndpoints
 }
 
 public record CreateChoreRequest(string Title, Guid AssignedFamilyMemberId, DateOnly ScheduledDate);
+
+public record UpdateChoreRequest(string Title, Guid AssignedFamilyMemberId, DateOnly ScheduledDate);
 
 public record ChoreResponse(
     Guid ChoreId,

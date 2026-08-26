@@ -5,7 +5,7 @@ public class DoseLog
     public Guid Id { get; init; }
     public required Guid MedicationId { get; init; }
     public required Guid FamilyMemberId { get; init; }
-    public DoseLogStatus Status { get; init; }
+    public DoseLogStatus Status { get; set; }
     public DateTimeOffset LoggedAt { get; init; }
 }
 

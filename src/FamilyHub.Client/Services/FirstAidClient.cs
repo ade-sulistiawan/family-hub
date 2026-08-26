@@ -24,6 +24,31 @@ public class FirstAidClient(HttpClient http)
         });
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task UpdateAsync(
+        Guid itemId,
+        string name,
+        int quantity,
+        int lowStockThreshold,
+        DateOnly expiresOn,
+        int leadTimeDays)
+    {
+        var response = await http.PutAsJsonAsync($"/api/first-aid-items/{itemId}", new
+        {
+            name,
+            quantity,
+            lowStockThreshold,
+            expiresOn,
+            leadTimeDays,
+        });
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteAsync(Guid itemId)
+    {
+        var response = await http.DeleteAsync($"/api/first-aid-items/{itemId}");
+        response.EnsureSuccessStatusCode();
+    }
 }
 
 public record FirstAidItem(

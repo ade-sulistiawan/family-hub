@@ -13,6 +13,8 @@ public static class ExpiryEndpoints
         var group = app.MapGroup("/api/expiry-items").RequireAuthorization();
         group.MapGet("/", GetAll);
         group.MapPost("/", Create);
+        group.MapPut("/{itemId:guid}", Update);
+        group.MapDelete("/{itemId:guid}", Delete);
         return group;
     }
 
@@ -81,8 +83,68 @@ public static class ExpiryEndpoints
             expiry.ExpiresOn,
             expiry.LeadTimeDays));
     }
+
+    private static async Task<IResult> Update(
+        Guid itemId,
+        UpdateExpiryItemRequest request,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var name = request.Name?.Trim();
+        if (string.IsNullOrEmpty(name) || name.Length > 120)
+        {
+            return Results.BadRequest("Item name must be between 1 and 120 characters.");
+        }
+
+        if (request.LeadTimeDays is < 0 or > 3650)
+        {
+            return Results.BadRequest("Lead Time must be between 0 and 3650 days.");
+        }
+
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var item = await db.Items.SingleOrDefaultAsync(
+            candidate => candidate.Id == itemId && candidate.HouseholdId == currentMember.HouseholdId,
+            cancellationToken);
+        var expiry = await db.ExpiryFacets.SingleOrDefaultAsync(
+            candidate => candidate.ItemId == itemId,
+            cancellationToken);
+        if (item is null || expiry is null)
+        {
+            return Results.NotFound();
+        }
+
+        item.Name = name;
+        expiry.ExpiresOn = request.ExpiresOn;
+        expiry.LeadTimeDays = request.LeadTimeDays;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return Results.Ok(new ExpiryItemResponse(item.Id, item.Name, expiry.ExpiresOn, expiry.LeadTimeDays));
+    }
+
+    private static async Task<IResult> Delete(
+        Guid itemId,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        return await ItemOwnership.DeleteAsync(itemId, currentMember.HouseholdId, db, cancellationToken);
+    }
 }
 
 public record CreateExpiryItemRequest(string Name, DateOnly ExpiresOn, int LeadTimeDays);
+
+public record UpdateExpiryItemRequest(string Name, DateOnly ExpiresOn, int LeadTimeDays);
 
 public record ExpiryItemResponse(Guid ItemId, string Name, DateOnly ExpiresOn, int LeadTimeDays);

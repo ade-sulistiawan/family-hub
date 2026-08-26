@@ -12,8 +12,12 @@ public static class MedicationEndpoints
         var group = app.MapGroup("/api/medications").RequireAuthorization();
         group.MapGet("/", GetAll);
         group.MapPost("/", Create);
+        group.MapPut("/{medicationId:guid}", Update);
+        group.MapDelete("/{medicationId:guid}", Delete);
         group.MapGet("/dose-logs", GetDoseLogs);
         group.MapPost("/{medicationId:guid}/dose-logs", LogDose);
+        group.MapPut("/dose-logs/{doseLogId:guid}", UpdateDoseLog);
+        group.MapDelete("/dose-logs/{doseLogId:guid}", DeleteDoseLog);
         return group;
     }
 
@@ -113,6 +117,102 @@ public static class MedicationEndpoints
             medication.MinimumHoursBetweenDoses));
     }
 
+    private static async Task<IResult> Update(
+        Guid medicationId,
+        UpdateMedicationRequest request,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var name = request.Name?.Trim();
+        var dosage = request.Dosage?.Trim();
+        if (string.IsNullOrEmpty(name) || name.Length > 120 ||
+            string.IsNullOrEmpty(dosage) || dosage.Length > 120)
+        {
+            return Results.BadRequest("Medication name and dosage must be between 1 and 120 characters.");
+        }
+
+        if (!Enum.TryParse<MedicationKind>(request.Kind, true, out var kind))
+        {
+            return Results.BadRequest("Medication kind must be Scheduled or Prn.");
+        }
+
+        if (kind == MedicationKind.Scheduled && request.ScheduledTime is null)
+        {
+            return Results.BadRequest("Scheduled Medication requires a schedule time.");
+        }
+
+        if (kind == MedicationKind.Prn && request.MinimumHoursBetweenDoses is not > 0)
+        {
+            return Results.BadRequest("PRN Medication requires a positive minimum dose interval.");
+        }
+
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var medication = await db.Medications.SingleOrDefaultAsync(
+            candidate => candidate.Id == medicationId && candidate.HouseholdId == currentMember.HouseholdId,
+            cancellationToken);
+        if (medication is null)
+        {
+            return Results.NotFound();
+        }
+
+        var assignee = await db.FamilyMembers.SingleOrDefaultAsync(
+            member => member.Id == request.AssignedFamilyMemberId && member.HouseholdId == currentMember.HouseholdId,
+            cancellationToken);
+        if (assignee is null)
+        {
+            return Results.BadRequest("The assigned Family Member does not belong to this Household.");
+        }
+
+        medication.Name = name;
+        medication.Dosage = dosage;
+        medication.AssignedFamilyMemberId = assignee.Id;
+        medication.Kind = kind;
+        medication.ScheduledTime = kind == MedicationKind.Scheduled ? request.ScheduledTime : null;
+        medication.MinimumHoursBetweenDoses = kind == MedicationKind.Prn ? request.MinimumHoursBetweenDoses : null;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return Results.Ok(new MedicationResponse(
+            medication.Id,
+            medication.Name,
+            medication.Dosage,
+            medication.AssignedFamilyMemberId,
+            assignee.DisplayName,
+            medication.Kind.ToString(),
+            medication.ScheduledTime,
+            medication.MinimumHoursBetweenDoses));
+    }
+
+    private static async Task<IResult> Delete(
+        Guid medicationId,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var medication = await db.Medications.SingleOrDefaultAsync(
+            candidate => candidate.Id == medicationId && candidate.HouseholdId == currentMember.HouseholdId,
+            cancellationToken);
+        if (medication is null)
+        {
+            return Results.NotFound();
+        }
+
+        db.Medications.Remove(medication);
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.NoContent();
+    }
+
     private static async Task<IResult> GetDoseLogs(ClaimsPrincipal user, FamilyHubDbContext db)
     {
         var currentMember = await CurrentFamilyMember.FindAsync(user, db);
@@ -181,9 +281,96 @@ public static class MedicationEndpoints
             log.Status.ToString(),
             log.LoggedAt));
     }
+
+    private static async Task<IResult> UpdateDoseLog(
+        Guid doseLogId,
+        UpdateDoseLogRequest request,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.TryParse<DoseLogStatus>(request.Status, true, out var status))
+        {
+            return Results.BadRequest("Dose Log status must be Taken, Skipped, or Missed.");
+        }
+
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var log = await (
+            from candidate in db.DoseLogs
+            join medication in db.Medications on candidate.MedicationId equals medication.Id
+            where candidate.Id == doseLogId && medication.HouseholdId == currentMember.HouseholdId
+            select candidate)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (log is null)
+        {
+            return Results.NotFound();
+        }
+
+        log.Status = status;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return Results.Ok(new DoseLogResponse(log.Id, log.MedicationId, log.FamilyMemberId, log.Status.ToString(), log.LoggedAt));
+    }
+
+    private static async Task<IResult> DeleteDoseLog(
+        Guid doseLogId,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var log = await (
+            from candidate in db.DoseLogs
+            join medication in db.Medications on candidate.MedicationId equals medication.Id
+            where candidate.Id == doseLogId && medication.HouseholdId == currentMember.HouseholdId
+            select candidate)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (log is null)
+        {
+            return Results.NotFound();
+        }
+
+        // Dose Log history is what makes a Medication Reminder trustworthy, so hard delete is only
+        // allowed for an exact accidental duplicate (same medication, same status, logged within
+        // minutes of another entry) rather than as a general "undo my history" action.
+        var hasDuplicate = await db.DoseLogs.AnyAsync(
+            other => other.Id != log.Id &&
+                other.MedicationId == log.MedicationId &&
+                other.Status == log.Status &&
+                (other.LoggedAt - log.LoggedAt <= TimeSpan.FromMinutes(5)) &&
+                (other.LoggedAt - log.LoggedAt >= TimeSpan.FromMinutes(-5)),
+            cancellationToken);
+        if (!hasDuplicate)
+        {
+            return Results.Conflict(
+                "Only an exact duplicate Dose Log entry can be deleted. Edit this entry instead to correct it.");
+        }
+
+        db.DoseLogs.Remove(log);
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.NoContent();
+    }
 }
 
 public record CreateMedicationRequest(
+    string Name,
+    string Dosage,
+    Guid AssignedFamilyMemberId,
+    string Kind,
+    TimeOnly? ScheduledTime,
+    int? MinimumHoursBetweenDoses);
+
+public record UpdateMedicationRequest(
     string Name,
     string Dosage,
     Guid AssignedFamilyMemberId,
@@ -202,6 +389,8 @@ public record MedicationResponse(
     int? MinimumHoursBetweenDoses);
 
 public record CreateDoseLogRequest(string Status);
+
+public record UpdateDoseLogRequest(string Status);
 
 public record DoseLogResponse(
     Guid DoseLogId,

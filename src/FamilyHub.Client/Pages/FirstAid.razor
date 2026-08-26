@@ -45,7 +45,7 @@
                 @foreach (var item in _items)
                 {
                     var isLow = item.Quantity <= item.LowStockThreshold;
-                    <div class="row">
+                    <button type="button" class="row row-link" @onclick="() => OpenEdit(item)">
                         <div class="datechip @(isLow ? "is-alert" : null)">
                             <span>Qty</span>
                             <strong>@item.Quantity</strong>
@@ -59,7 +59,7 @@
                                 @(isLow ? "Low stock" : $"Min {item.LowStockThreshold}")
                             </span>
                         </div>
-                    </div>
+                    </button>
                 }
             }
         </div>
@@ -102,6 +102,50 @@
     }
 </Sheet>
 
+<Sheet @bind-Open="_editSheetOpen" Title="Edit stock">
+    <form class="fields" @onsubmit="UpdateAsync" @onsubmit:preventDefault>
+        <label class="field">
+            <span>Item</span>
+            <input required maxlength="120" @bind="_editName" />
+        </label>
+        <div class="field-pair">
+            <label class="field">
+                <span>Quantity</span>
+                <input type="number" min="0" required @bind="_editQuantity" />
+            </label>
+            <label class="field">
+                <span>Low-stock at</span>
+                <input type="number" min="0" required @bind="_editLowStockThreshold" />
+            </label>
+        </div>
+        <div class="field-pair">
+            <label class="field">
+                <span>Expires on</span>
+                <input type="date" required @bind="_editExpiresOn" />
+            </label>
+            <label class="field">
+                <span>Lead Time (days)</span>
+                <input type="number" min="0" max="3650" required @bind="_editLeadTimeDays" />
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
+            @(_isSaving ? "Saving" : "Save changes")
+        </button>
+        <button type="button" class="btn-text" @onclick="() => _confirmDeleteOpen = true">Delete item</button>
+    </form>
+    @if (_editError is not null)
+    {
+        <p class="form-error" role="alert">@_editError</p>
+    }
+</Sheet>
+
+<ConfirmDialog @bind-Open="_confirmDeleteOpen"
+               Title="Delete item"
+               Message="@_deleteMessage"
+               OnConfirm="DeleteAsync"
+               Error="@_deleteError"
+               IsBusy="_isDeleting" />
+
 @code {
     private IReadOnlyList<FirstAidItem> _items = [];
     private string _name = string.Empty;
@@ -114,6 +158,19 @@
     private bool _isLoading = true;
     private bool _isSaving;
     private bool _sheetOpen;
+
+    private FirstAidItem? _editItem;
+    private string _editName = string.Empty;
+    private int _editQuantity;
+    private int _editLowStockThreshold;
+    private DateOnly _editExpiresOn;
+    private int _editLeadTimeDays;
+    private string? _editError;
+    private bool _editSheetOpen;
+    private bool _confirmDeleteOpen;
+    private string? _deleteError;
+    private bool _isDeleting;
+    private string _deleteMessage = string.Empty;
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -162,5 +219,70 @@
             _saveError = "The first-aid Item could not be added.";
         }
         finally { _isSaving = false; }
+    }
+
+    private void OpenEdit(FirstAidItem item)
+    {
+        _editItem = item;
+        _editName = item.Name;
+        _editQuantity = item.Quantity;
+        _editLowStockThreshold = item.LowStockThreshold;
+        _editExpiresOn = item.ExpiresOn;
+        _editLeadTimeDays = item.LeadTimeDays;
+        _editError = null;
+        _deleteError = null;
+        _deleteMessage = $"Delete {item.Name}? This can't be undone.";
+        _editSheetOpen = true;
+    }
+
+    private async Task UpdateAsync()
+    {
+        if (_editItem is null || string.IsNullOrWhiteSpace(_editName)) return;
+        _isSaving = true;
+        _editError = null;
+        try
+        {
+            await FirstAidClient.UpdateAsync(
+                _editItem.ItemId,
+                _editName.Trim(),
+                _editQuantity,
+                _editLowStockThreshold,
+                _editExpiresOn,
+                _editLeadTimeDays);
+            _items = await FirstAidClient.GetAllAsync();
+            _editSheetOpen = false;
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/first-aid", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _editError = "The item could not be saved.";
+        }
+        finally { _isSaving = false; }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_editItem is null) return;
+        _isDeleting = true;
+        _deleteError = null;
+        try
+        {
+            await FirstAidClient.DeleteAsync(_editItem.ItemId);
+            _items = await FirstAidClient.GetAllAsync();
+            _confirmDeleteOpen = false;
+            _editSheetOpen = false;
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/first-aid", forceLoad: true);
+        }
+        catch (HttpRequestException)
+        {
+            _deleteError = "The item could not be deleted.";
+        }
+        finally { _isDeleting = false; }
     }
 }

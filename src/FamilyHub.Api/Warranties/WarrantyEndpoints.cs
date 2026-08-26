@@ -19,6 +19,9 @@ public static class WarrantyEndpoints
         group.MapGet("/", GetAll);
         group.MapPost("/", Create);
         group.MapPost("/with-document", CreateWithDocument).DisableAntiforgery();
+        group.MapPut("/{itemId:guid}", Update);
+        group.MapPost("/{itemId:guid}/document", ReplaceDocument).DisableAntiforgery();
+        group.MapDelete("/{itemId:guid}", Delete);
         group.MapGet("/{itemId:guid}/document/thumbnail", GetDocumentThumbnail);
         group.MapGet("/{itemId:guid}/document/preview", GetDocumentPreview);
         return group;
@@ -223,6 +226,185 @@ public static class WarrantyEndpoints
             warranty.DocumentExternalId));
     }
 
+    private static async Task<IResult> Update(
+        Guid itemId,
+        UpdateWarrantyItemRequest request,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var name = request.Name?.Trim();
+        if (string.IsNullOrEmpty(name) || name.Length > 120)
+        {
+            return Results.BadRequest("Item name must be between 1 and 120 characters.");
+        }
+
+        if (request.WarrantyExpiresOn < request.PurchasedOn)
+        {
+            return Results.BadRequest("Warranty end date cannot be before the purchase date.");
+        }
+
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var item = await db.Items.SingleOrDefaultAsync(
+            candidate => candidate.Id == itemId && candidate.HouseholdId == currentMember.HouseholdId,
+            cancellationToken);
+        var warranty = await db.WarrantyFacets.SingleOrDefaultAsync(
+            candidate => candidate.ItemId == itemId,
+            cancellationToken);
+        if (item is null || warranty is null)
+        {
+            return Results.NotFound();
+        }
+
+        item.Name = name;
+        warranty.PurchasedOn = request.PurchasedOn;
+        warranty.WarrantyExpiresOn = request.WarrantyExpiresOn;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return Results.Ok(new WarrantyItemResponse(
+            item.Id,
+            item.Name,
+            warranty.PurchasedOn,
+            warranty.WarrantyExpiresOn,
+            warranty.DocumentExternalId));
+    }
+
+    private static async Task<IResult> ReplaceDocument(
+        Guid itemId,
+        HttpRequest request,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        IDataProtectionProvider dataProtectionProvider,
+        IPaperlessDocumentClient paperlessClient,
+        CancellationToken cancellationToken)
+    {
+        if (!request.HasFormContentType)
+        {
+            return Results.BadRequest("Submit the replacement document as multipart form data.");
+        }
+
+        var form = await request.ReadFormAsync(cancellationToken);
+        var document = form.Files.GetFile("document");
+        if (document is null || document.Length == 0)
+        {
+            return Results.BadRequest("Choose a warranty or receipt image.");
+        }
+
+        if (document.Length > 10 * 1024 * 1024)
+        {
+            return Results.BadRequest("The image cannot exceed 10 MB.");
+        }
+
+        if (!document.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            return Results.BadRequest("Only image files can be uploaded.");
+        }
+
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        var item = await db.Items.SingleOrDefaultAsync(
+            candidate => candidate.Id == itemId && candidate.HouseholdId == currentMember.HouseholdId,
+            cancellationToken);
+        var warranty = await db.WarrantyFacets.SingleOrDefaultAsync(
+            candidate => candidate.ItemId == itemId,
+            cancellationToken);
+        if (item is null || warranty is null)
+        {
+            return Results.NotFound();
+        }
+
+        var (connection, connectionError) = await ResolvePaperlessConnectionAsync(
+            currentMember.HouseholdId,
+            db,
+            dataProtectionProvider,
+            cancellationToken);
+        if (connectionError is not null)
+        {
+            return connectionError;
+        }
+
+        string documentExternalId;
+        try
+        {
+            await using var documentStream = document.OpenReadStream();
+            documentExternalId = await paperlessClient.UploadAsync(
+                connection!,
+                documentStream,
+                Path.GetFileName(document.FileName),
+                document.ContentType,
+                item.Name,
+                cancellationToken);
+        }
+        catch (PaperlessUploadException exception)
+        {
+            return Results.Problem(
+                detail: exception.Message,
+                statusCode: StatusCodes.Status502BadGateway,
+                title: "Paperless-ngx upload failed");
+        }
+
+        // The previously referenced document is deliberately left in Paperless-ngx; Family Hub
+        // only owns the reference, never the file's lifecycle (see ADR-0002).
+        warranty.DocumentExternalId = documentExternalId;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return Results.Ok(new WarrantyItemResponse(
+            item.Id,
+            item.Name,
+            warranty.PurchasedOn,
+            warranty.WarrantyExpiresOn,
+            warranty.DocumentExternalId));
+    }
+
+    private static async Task<IResult> Delete(
+        Guid itemId,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var currentMember = await CurrentFamilyMember.FindAsync(user, db);
+        if (currentMember is null)
+        {
+            return Results.NotFound();
+        }
+
+        return await ItemOwnership.DeleteAsync(itemId, currentMember.HouseholdId, db, cancellationToken);
+    }
+
+    private static async Task<(PaperlessConnection? Connection, IResult? Error)> ResolvePaperlessConnectionAsync(
+        Guid householdId,
+        FamilyHubDbContext db,
+        IDataProtectionProvider dataProtectionProvider,
+        CancellationToken cancellationToken)
+    {
+        var settings = await db.PaperlessSettings
+            .AsNoTracking()
+            .SingleOrDefaultAsync(candidate => candidate.HouseholdId == householdId, cancellationToken);
+        if (settings is null)
+        {
+            return (null, Results.Conflict("Configure Paperless-ngx in Settings before uploading a document."));
+        }
+
+        try
+        {
+            var apiToken = PaperlessSettingsEndpoints.UnprotectApiToken(settings, dataProtectionProvider);
+            return (new PaperlessConnection(new Uri(settings.BaseUrl), apiToken), null);
+        }
+        catch (CryptographicException)
+        {
+            return (null, Results.Conflict("Save the Paperless-ngx API token again in Settings."));
+        }
+    }
+
     private static Task<IResult> GetDocumentThumbnail(
         Guid itemId,
         ClaimsPrincipal user,
@@ -342,6 +524,11 @@ public record CreateWarrantyItemRequest(
     DateOnly? PurchasedOn,
     DateOnly? WarrantyExpiresOn,
     string? DocumentExternalId);
+
+public record UpdateWarrantyItemRequest(
+    string Name,
+    DateOnly? PurchasedOn,
+    DateOnly? WarrantyExpiresOn);
 
 public record WarrantyItemResponse(
     Guid ItemId,
