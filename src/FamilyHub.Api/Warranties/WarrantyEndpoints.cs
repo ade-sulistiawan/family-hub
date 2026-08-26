@@ -20,6 +20,7 @@ public static class WarrantyEndpoints
         group.MapPost("/", Create);
         group.MapPost("/with-document", CreateWithDocument).DisableAntiforgery();
         group.MapGet("/{itemId:guid}/document/thumbnail", GetDocumentThumbnail);
+        group.MapGet("/{itemId:guid}/document/preview", GetDocumentPreview);
         return group;
     }
 
@@ -222,12 +223,45 @@ public static class WarrantyEndpoints
             warranty.DocumentExternalId));
     }
 
-    private static async Task<IResult> GetDocumentThumbnail(
+    private static Task<IResult> GetDocumentThumbnail(
         Guid itemId,
         ClaimsPrincipal user,
         FamilyHubDbContext db,
         IDataProtectionProvider dataProtectionProvider,
         IPaperlessDocumentClient paperlessClient,
+        CancellationToken cancellationToken) =>
+        GetDocumentContent(
+            itemId,
+            user,
+            db,
+            dataProtectionProvider,
+            paperlessClient.GetThumbnailAsync,
+            "Paperless-ngx thumbnail request failed",
+            cancellationToken);
+
+    private static Task<IResult> GetDocumentPreview(
+        Guid itemId,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        IDataProtectionProvider dataProtectionProvider,
+        IPaperlessDocumentClient paperlessClient,
+        CancellationToken cancellationToken) =>
+        GetDocumentContent(
+            itemId,
+            user,
+            db,
+            dataProtectionProvider,
+            paperlessClient.GetPreviewAsync,
+            "Paperless-ngx preview request failed",
+            cancellationToken);
+
+    private static async Task<IResult> GetDocumentContent(
+        Guid itemId,
+        ClaimsPrincipal user,
+        FamilyHubDbContext db,
+        IDataProtectionProvider dataProtectionProvider,
+        Func<PaperlessConnection, string, CancellationToken, Task<PaperlessThumbnail>> fetchContent,
+        string failureTitle,
         CancellationToken cancellationToken)
     {
         var currentMember = await CurrentFamilyMember.FindAsync(user, db);
@@ -269,18 +303,18 @@ public static class WarrantyEndpoints
 
         try
         {
-            var thumbnail = await paperlessClient.GetThumbnailAsync(
+            var content = await fetchContent(
                 new PaperlessConnection(new Uri(settings.BaseUrl), apiToken),
                 documentExternalId,
                 cancellationToken);
-            return Results.Stream(thumbnail.Content, thumbnail.ContentType);
+            return Results.Stream(content.Content, content.ContentType);
         }
         catch (PaperlessUploadException exception)
         {
             return Results.Problem(
                 detail: exception.Message,
                 statusCode: StatusCodes.Status502BadGateway,
-                title: "Paperless-ngx thumbnail request failed");
+                title: failureTitle);
         }
     }
 

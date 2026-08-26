@@ -45,16 +45,18 @@
                 @foreach (var item in _items)
                 {
                     <div class="row">
-                        <span class="avatar">
-                            @if (item.DocumentExternalId is not null)
-                            {
+                        @if (item.DocumentExternalId is not null)
+                        {
+                            <button type="button" class="avatar avatar-button" aria-label="View @item.Name document" @onclick="() => OpenPreview(item)">
                                 <img src="@GetThumbnailUrl(item)" alt="" loading="lazy" />
-                            }
-                            else
-                            {
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="avatar">
                                 <Icon Name="warranty" />
-                            }
-                        </span>
+                            </span>
+                        }
                         <div class="row-main">
                             <div class="row-title">@item.Name</div>
                             <div class="row-sub">@GetPurchaseText(item)</div>
@@ -102,6 +104,13 @@
     }
 </Sheet>
 
+<Sheet @bind-Open="_previewOpen" Title="@(_previewItem?.Name ?? "Document")">
+    @if (_previewItem is not null)
+    {
+        <img class="preview-image" src="@GetPreviewUrl(_previewItem)" alt="" />
+    }
+</Sheet>
+
 @code {
     private IReadOnlyList<WarrantyItem> _items = [];
     private string _name = string.Empty;
@@ -114,6 +123,8 @@
     private bool _isLoading = true;
     private bool _isSaving;
     private bool _sheetOpen;
+    private bool _previewOpen;
+    private WarrantyItem? _previewItem;
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -176,6 +187,12 @@
         _saveError = null;
     }
 
+    private void OpenPreview(WarrantyItem item)
+    {
+        _previewItem = item;
+        _previewOpen = true;
+    }
+
     private static string GetPurchaseText(WarrantyItem item) =>
         item.PurchasedOn is null ? "Purchase date not recorded" : $"Purchased {item.PurchasedOn:d MMM yyyy}";
 
@@ -184,4 +201,7 @@
 
     private static string GetThumbnailUrl(WarrantyItem item) =>
         $"/api/warranty-items/{item.ItemId}/document/thumbnail";
+
+    private static string GetPreviewUrl(WarrantyItem item) =>
+        $"/api/warranty-items/{item.ItemId}/document/preview";
 }

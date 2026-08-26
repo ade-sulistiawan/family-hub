@@ -152,6 +152,53 @@ public class PaperlessDocumentClientTests
         Assert.Equal("Paperless-ngx could not return the document thumbnail.", exception.Message);
     }
 
+    [Fact]
+    public async Task GetPreview_requests_the_documents_full_size_preview_and_returns_its_bytes_and_content_type()
+    {
+        var requests = new Queue<Func<HttpRequestMessage, HttpResponseMessage>>();
+        requests.Enqueue(request =>
+        {
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.Equal("https://paperless.example.test/api/documents/4821/preview/", request.RequestUri?.AbsoluteUri);
+            Assert.Equal(new AuthenticationHeaderValue("Token", "secret-token"), request.Headers.Authorization);
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent([1, 2, 3, 4]),
+            };
+            response.Content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+            return response;
+        });
+        using var httpClient = new HttpClient(new QueueMessageHandler(requests));
+        var client = new PaperlessDocumentClient(httpClient);
+
+        var preview = await client.GetPreviewAsync(
+            new PaperlessConnection(new Uri("https://paperless.example.test/"), "secret-token"),
+            "4821",
+            CancellationToken.None);
+
+        Assert.Equal("image/png", preview.ContentType);
+        using var buffer = new MemoryStream();
+        await preview.Content.CopyToAsync(buffer);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, buffer.ToArray());
+    }
+
+    [Fact]
+    public async Task GetPreview_reports_a_failed_response_as_a_paperless_upload_failure()
+    {
+        var requests = new Queue<Func<HttpRequestMessage, HttpResponseMessage>>();
+        requests.Enqueue(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        using var httpClient = new HttpClient(new QueueMessageHandler(requests));
+        var client = new PaperlessDocumentClient(httpClient);
+
+        var exception = await Assert.ThrowsAsync<PaperlessUploadException>(() => client.GetPreviewAsync(
+            new PaperlessConnection(new Uri("https://paperless.example.test/"), "secret-token"),
+            "4821",
+            CancellationToken.None));
+
+        Assert.Equal("Paperless-ngx could not return the document preview.", exception.Message);
+    }
+
     private static HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK)
     {
         Content = new StringContent(json, Encoding.UTF8, "application/json"),

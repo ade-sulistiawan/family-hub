@@ -14,6 +14,11 @@ public interface IPaperlessDocumentClient
         PaperlessConnection connection,
         string documentExternalId,
         CancellationToken cancellationToken);
+
+    Task<PaperlessThumbnail> GetPreviewAsync(
+        PaperlessConnection connection,
+        string documentExternalId,
+        CancellationToken cancellationToken);
 }
 
 public record PaperlessConnection(Uri BaseUrl, string ApiToken);

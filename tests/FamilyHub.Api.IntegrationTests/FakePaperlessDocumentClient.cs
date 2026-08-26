@@ -41,4 +41,19 @@ public class FakePaperlessDocumentClient : IPaperlessDocumentClient
 
         return Task.FromResult(new PaperlessThumbnail(new MemoryStream([1, 2, 3]), "image/png"));
     }
+
+    public Task<PaperlessThumbnail> GetPreviewAsync(
+        PaperlessConnection connection,
+        string documentExternalId,
+        CancellationToken cancellationToken)
+    {
+        if (connection.BaseUrl != new Uri("https://paperless.example.test/")
+            || connection.ApiToken != "secret-paperless-token"
+            || documentExternalId != "4821")
+        {
+            throw new PaperlessUploadException("Unexpected Paperless preview request.");
+        }
+
+        return Task.FromResult(new PaperlessThumbnail(new MemoryStream([1, 2, 3, 4]), "image/png"));
+    }
 }
