@@ -320,17 +320,20 @@
             }
             _medications = await MedicationClient.GetAllAsync();
             _doseLogs = await MedicationClient.GetDoseLogsAsync();
-            await LoadNotificationStateAsync();
         }
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
             Navigation.NavigateTo("/login?returnUrl=/medications", forceLoad: true);
+            return;
         }
         catch (HttpRequestException)
         {
             _loadError = "Medications could not be loaded.";
         }
         finally { _isLoading = false; }
+
+        // Fire-and-forget: a stalled service worker/push subscription must never block the page load.
+        _ = LoadNotificationStateAsync();
     }
 
     private async Task LoadNotificationStateAsync()
@@ -353,6 +356,7 @@
             _notificationPermission = "unsupported";
             _notificationError = "This browser could not initialize Push notifications.";
         }
+        StateHasChanged();
     }
 
     private async Task CreateAsync()

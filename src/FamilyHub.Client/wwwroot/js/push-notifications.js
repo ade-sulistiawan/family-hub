@@ -25,7 +25,13 @@ async function subscribe(publicKey, requestPermission) {
     return { status: permission };
   }
 
-  const registration = await navigator.serviceWorker.ready;
+  // navigator.serviceWorker.ready never settles if the worker's install fails, so bound the wait.
+  const registration = await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Service worker did not become ready in time")), 10000),
+    ),
+  ]);
   let subscription = await registration.pushManager.getSubscription();
   if (!subscription) {
     subscription = await registration.pushManager.subscribe({
