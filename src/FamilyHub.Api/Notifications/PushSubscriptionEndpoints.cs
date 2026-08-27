@@ -19,7 +19,9 @@ public static class PushSubscriptionEndpoints
 
     private static IResult GetVapidPublicKey(IConfiguration configuration)
     {
-        var publicKey = configuration["Notifications:Vapid:PublicKey"];
+        // Trim defensively: a trailing newline/space in the env var (easy to introduce via copy-paste
+        // into Coolify/`.env`) silently breaks the browser's applicationServerKey decoding.
+        var publicKey = configuration["Notifications:Vapid:PublicKey"]?.Trim();
         return string.IsNullOrWhiteSpace(publicKey)
             ? Results.Problem("Push notifications are not configured.", statusCode: StatusCodes.Status503ServiceUnavailable)
             : Results.Ok(new VapidPublicKeyResponse(publicKey));

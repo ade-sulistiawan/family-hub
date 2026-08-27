@@ -10,9 +10,9 @@ public class WebPushNotificationSender(IConfiguration configuration) : IPushNoti
         PushNotification notification,
         CancellationToken cancellationToken)
     {
-        var subject = configuration["Notifications:Vapid:Subject"];
-        var publicKey = configuration["Notifications:Vapid:PublicKey"];
-        var privateKey = configuration["Notifications:Vapid:PrivateKey"];
+        var subject = configuration["Notifications:Vapid:Subject"]?.Trim();
+        var publicKey = configuration["Notifications:Vapid:PublicKey"]?.Trim();
+        var privateKey = configuration["Notifications:Vapid:PrivateKey"]?.Trim();
         if (string.IsNullOrWhiteSpace(subject) ||
             string.IsNullOrWhiteSpace(publicKey) ||
             string.IsNullOrWhiteSpace(privateKey))

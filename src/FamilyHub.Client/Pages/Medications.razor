@@ -431,9 +431,11 @@
         {
             _notificationError = "Notifications could not be enabled. Check the server Push configuration.";
         }
-        catch (JSException)
+        catch (JSException exception)
         {
-            _notificationError = "The browser could not create a Push subscription.";
+            // The JS-side error message (e.g. "applicationServerKey is not valid") never reaches
+            // server logs, so surface it here — it's the only place this failure is visible.
+            _notificationError = $"The browser could not create a Push subscription: {exception.Message}";
         }
         catch (Exception)
         {

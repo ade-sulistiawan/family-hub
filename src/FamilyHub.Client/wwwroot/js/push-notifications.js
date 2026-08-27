@@ -60,8 +60,9 @@ async function subscribeCore(publicKey) {
 }
 
 function urlBase64ToUint8Array(value) {
-  const padding = "=".repeat((4 - (value.length % 4)) % 4);
-  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const trimmed = value.trim();
+  const padding = "=".repeat((4 - (trimmed.length % 4)) % 4);
+  const base64 = (trimmed + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(base64);
   return Uint8Array.from([...raw].map((character) => character.charCodeAt(0)));
 }
