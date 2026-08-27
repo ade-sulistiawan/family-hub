@@ -10,8 +10,11 @@ needed.
   install script). On a Raspberry Pi, use the 64-bit (arm64) OS — ARM support in Coolify is not
   as battle-tested as x86.
 - The repo pushed to a Git remote Coolify can reach (GitHub, or a local Git server).
-- A Google OAuth client (Client ID/Secret) with an authorized redirect URI of
-  `http://<server-ip-or-domain>:8013/signin-google`.
+- A Google OAuth client (Client ID/Secret) with an authorized redirect URI matching how you expose
+  the app: `http://<server-ip-or-domain>:8013/signin-google` for the direct port mapping below, or
+  `https://<your-domain>/signin-google` if you put it behind Coolify's Traefik proxy/domain (the
+  app trusts Traefik's `X-Forwarded-Proto` header, see `Program.cs`, so it correctly builds
+  `https://` redirect URIs in that case).
 - VAPID keys for web push, generated with `npx web-push generate-vapid-keys`.
 
 ## Create the resource

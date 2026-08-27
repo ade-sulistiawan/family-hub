@@ -11,6 +11,7 @@ using FamilyHub.Api.Warranties;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +19,17 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// Behind Coolify's Traefik proxy, Kestrel only sees plain HTTP; without this, the app builds
+// OAuth redirect URIs (and other absolute URLs) with the wrong "http://" scheme.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // Single-tenant deployment (ADR-0001): the only proxy in front of this app is our own
+    // Traefik instance on the Docker network, so we trust it regardless of its container IP.
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 builder.Services.AddDataProtection();
 builder.Services.AddHttpClient<IPaperlessDocumentClient, PaperlessDocumentClient>();
 
@@ -64,6 +76,8 @@ if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientS
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 // No SDK/dotnet-ef in the published container, so apply migrations here on startup.
 using (var migrationScope = app.Services.CreateScope())
