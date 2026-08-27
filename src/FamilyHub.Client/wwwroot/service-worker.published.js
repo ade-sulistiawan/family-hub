@@ -70,15 +70,21 @@ async function onActivate(event) {
   );
 }
 
+// Server-rendered routes (ASP.NET minimal API endpoints, not Blazor SPA pages) that must
+// always hit the network so their redirects (e.g. Google OAuth challenge) actually run.
+const serverRoutePatterns = [/^\/login$/, /^\/logout$/, /^\/signin-google$/];
+
 async function onFetch(event) {
   let cachedResponse = null;
   if (event.request.method === "GET") {
     // For all navigation requests, try to serve index.html from cache,
-    // unless that request is for an offline resource.
+    // unless that request is for an offline resource or a server-rendered route.
     // If you need some URLs to be server-rendered, edit the following check to exclude those URLs
+    const requestPath = new URL(event.request.url).pathname;
     const shouldServeIndexHtml =
       event.request.mode === "navigate" &&
-      !manifestUrlList.some((url) => url === event.request.url);
+      !manifestUrlList.some((url) => url === event.request.url) &&
+      !serverRoutePatterns.some((pattern) => pattern.test(requestPath));
 
     const request = shouldServeIndexHtml ? "index.html" : event.request;
     const cache = await caches.open(cacheName);
