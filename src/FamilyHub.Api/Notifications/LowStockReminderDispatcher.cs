@@ -1,12 +1,14 @@
 using FamilyHub.Api.Data;
 using FamilyHub.Api.FirstAid;
 using Microsoft.EntityFrameworkCore;
+using WebPush;
 
 namespace FamilyHub.Api.Notifications;
 
 public class LowStockReminderDispatcher(
     FamilyHubDbContext db,
-    IPushNotificationSender sender)
+    IPushNotificationSender sender,
+    ILogger<LowStockReminderDispatcher> logger)
 {
     public async Task DispatchDueAsync(
         DateTimeOffset now,
@@ -53,21 +55,43 @@ public class LowStockReminderDispatcher(
                     continue;
                 }
 
-                var notification = new PushNotification(
-                    "Low stock",
-                    $"{stockItem.Item.Name}: {stockItem.Stock.Quantity} left (min {stockItem.Stock.LowStockThreshold})",
-                    "/first-aid",
-                    $"low-stock-{stockItem.Item.Id}");
-                await sender.SendAsync(subscription, notification, cancellationToken);
-
-                db.LowStockNotificationDeliveries.Add(new LowStockNotificationDelivery
+                try
                 {
-                    Id = Guid.NewGuid(),
-                    ItemId = stockItem.Item.Id,
-                    BrowserPushSubscriptionId = subscription.Id,
-                    SentAt = now,
-                });
-                await db.SaveChangesAsync(cancellationToken);
+                    var notification = new PushNotification(
+                        "Low stock",
+                        $"{stockItem.Item.Name}: {stockItem.Stock.Quantity} left (min {stockItem.Stock.LowStockThreshold})",
+                        "/first-aid",
+                        $"low-stock-{stockItem.Item.Id}");
+                    await sender.SendAsync(subscription, notification, cancellationToken);
+
+                    db.LowStockNotificationDeliveries.Add(new LowStockNotificationDelivery
+                    {
+                        Id = Guid.NewGuid(),
+                        ItemId = stockItem.Item.Id,
+                        BrowserPushSubscriptionId = subscription.Id,
+                        SentAt = now,
+                    });
+                    await db.SaveChangesAsync(cancellationToken);
+                }
+                catch (WebPushException exception)
+                {
+                    // One bad/expired subscription must not stop reminders for every other item.
+                    logger.LogWarning(
+                        exception,
+                        "Low stock push failed for subscription {SubscriptionId} ({StatusCode}).",
+                        subscription.Id,
+                        exception.StatusCode);
+
+                    if (exception.StatusCode is System.Net.HttpStatusCode.Gone or System.Net.HttpStatusCode.NotFound)
+                    {
+                        db.BrowserPushSubscriptions.Remove(subscription);
+                        await db.SaveChangesAsync(cancellationToken);
+                    }
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    logger.LogWarning(exception, "Low stock dispatch failed for item {ItemId}.", stockItem.Item.Id);
+                }
             }
         }
     }
