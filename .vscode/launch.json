@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "FamilyHub.Api (hosts client + API)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/src/FamilyHub.Api/bin/Debug/net10.0/FamilyHub.Api.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/FamilyHub.Api",
+            "stopAtEntry": false,
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            }
+        }
+    ]
+}

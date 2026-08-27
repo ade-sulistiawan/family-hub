@@ -2,6 +2,7 @@
 @using FamilyHub.Services
 @inject PaperlessSettingsClient PaperlessSettingsClient
 @inject HouseholdClient HouseholdClient
+@inject HttpClient Http
 @inject NavigationManager Navigation
 
 <PageTitle>Settings | Family Hub</PageTitle>
@@ -51,6 +52,17 @@
                 <p class="form-ok" role="status">Settings saved.</p>
             }
         </div>
+
+        <div class="section-head">
+            <h2>Account</h2>
+        </div>
+        <div class="card" style="padding:16px">
+            <button type="button" class="btn btn-block" @onclick="SignOutAsync" disabled="@_isSigningOut">
+                @(_isSigningOut ? "Signing out" : "Sign out")
+            </button>
+        </div>
+
+        <p class="app-version">Family Hub v@AppVersion</p>
     }
 </div>
 
@@ -63,6 +75,10 @@
     private bool _isLoading = true;
     private bool _isSaving;
     private bool _saved;
+    private bool _isSigningOut;
+
+    private static string AppVersion { get; } =
+        typeof(Settings).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -125,5 +141,21 @@
         {
             _isSaving = false;
         }
+    }
+
+    private async Task SignOutAsync()
+    {
+        _isSigningOut = true;
+        try
+        {
+            await Http.PostAsync("/logout", null);
+        }
+        catch (HttpRequestException)
+        {
+            // Cookie may already be invalid/expired; fall through to redirect regardless.
+        }
+
+        // /logout is a server endpoint, and the app needs a fresh, unauthenticated load.
+        Navigation.NavigateTo("/", forceLoad: true);
     }
 }
