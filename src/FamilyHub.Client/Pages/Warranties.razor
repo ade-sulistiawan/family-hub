@@ -95,7 +95,7 @@
         </div>
         <label class="field">
             <span>Receipt or warranty photo</span>
-            <InputFile @key="_fileInputKey" OnChange="SelectDocument" accept="image/*" capture="environment" required />
+            <InputFile @key="_fileInputKey" OnChange="SelectDocument" accept="image/*" required />
         </label>
         <button type="submit" class="btn btn-primary btn-block" disabled="@(_isSaving || _document is null)">
             @(_isSaving ? "Uploading" : "Add warranty")
@@ -132,8 +132,7 @@
         </div>
         <label class="field">
             <span>Replace receipt or warranty photo</span>
-            <InputFile @key="_editFileInputKey" OnChange="SelectReplacementDocument" accept="image/*"
-                       capture="environment" />
+            <InputFile @key="_editFileInputKey" OnChange="SelectReplacementDocument" accept="image/*" />
         </label>
         <button type="submit" class="btn btn-primary btn-block" disabled="@_isSaving">
             @(_isSaving ? "Saving" : "Save changes")
